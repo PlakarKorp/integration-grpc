@@ -2,12 +2,15 @@ package exporter
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	grpc_exporter "github.com/PlakarKorp/integration-grpc/exporter/pkg"
 	"github.com/PlakarKorp/kloset/objects"
 	"github.com/PlakarKorp/kloset/snapshot/exporter"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	// google being google I guess.  No idea why this is actually
 	// required, but otherwise it breaks the workspace setup
@@ -19,6 +22,20 @@ import (
 
 type GrpcExporter struct {
 	GrpcClient grpc_exporter.ExporterClient
+}
+
+func unwrap(err error) error {
+	status, ok := status.FromError(err)
+	if !ok {
+		return err
+	}
+
+	switch status.Code() {
+	case codes.Canceled:
+		return context.Canceled
+	default:
+		return fmt.Errorf("%s", status.Message())
+	}
 }
 
 func NewExporter(ctx context.Context, client grpc.ClientConnInterface, opts *exporter.Options, proto string, config map[string]string) (exporter.Exporter, error) {
@@ -34,7 +51,7 @@ func NewExporter(ctx context.Context, client grpc.ClientConnInterface, opts *exp
 		Config: config,
 	})
 	if err != nil {
-		return nil, err
+		return nil, unwrap(err)
 	}
 
 	return exporter, nil
@@ -42,21 +59,18 @@ func NewExporter(ctx context.Context, client grpc.ClientConnInterface, opts *exp
 
 func (g *GrpcExporter) Close(ctx context.Context) error {
 	_, err := g.GrpcClient.Close(ctx, &grpc_exporter.CloseRequest{})
-	return err
+	return unwrap(err)
 }
 
 func (g *GrpcExporter) CreateDirectory(ctx context.Context, pathname string) error {
 	_, err := g.GrpcClient.CreateDirectory(ctx, &grpc_exporter.CreateDirectoryRequest{Pathname: pathname})
-	if err != nil {
-		return err
-	}
-	return nil
+	return unwrap(err)
 }
 
 func (g *GrpcExporter) Root(ctx context.Context) (string, error) {
 	info, err := g.GrpcClient.Root(ctx, &grpc_exporter.RootRequest{})
 	if err != nil {
-		return "", err
+		return "", unwrap(err)
 	}
 	return info.RootPath, nil
 }
@@ -78,7 +92,7 @@ func (g *GrpcExporter) SetPermissions(ctx context.Context, pathname string, file
 			Flags:     fileinfo.Flags,
 		},
 	})
-	return err
+	return unwrap(err)
 }
 
 func (g *GrpcExporter) CreateLink(ctx context.Context, oldname string, newname string, ltype exporter.LinkType) error {
@@ -88,13 +102,13 @@ func (g *GrpcExporter) CreateLink(ctx context.Context, oldname string, newname s
 		Ltype:   uint32(ltype),
 	})
 
-	return err
+	return unwrap(err)
 }
 
 func (g *GrpcExporter) StoreFile(ctx context.Context, pathname string, fp io.Reader, size int64) error {
 	stream, err := g.GrpcClient.StoreFile(ctx)
 	if err != nil {
-		return err
+		return unwrap(err)
 	}
 
 	if err := stream.Send(&grpc_exporter.StoreFileRequest{
@@ -105,7 +119,7 @@ func (g *GrpcExporter) StoreFile(ctx context.Context, pathname string, fp io.Rea
 			},
 		},
 	}); err != nil {
-		return err
+		return unwrap(err)
 	}
 
 	buf := make([]byte, 32*1024)
@@ -125,10 +139,10 @@ func (g *GrpcExporter) StoreFile(ctx context.Context, pathname string, fp io.Rea
 				},
 			},
 		}); err != nil {
-			return err
+			return unwrap(err)
 		}
 	}
 
 	_, err = stream.CloseAndRecv()
-	return err
+	return unwrap(err)
 }

@@ -10,6 +10,8 @@ import (
 	"github.com/PlakarKorp/kloset/objects"
 	"github.com/PlakarKorp/kloset/snapshot/importer"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	grpc_importer_pkg "github.com/PlakarKorp/integration-grpc/importer/pkg"
 )
@@ -17,6 +19,20 @@ import (
 type GrpcImporter struct {
 	GrpcClientScan   grpc_importer_pkg.ImporterClient
 	GrpcClientReader grpc_importer_pkg.ImporterClient
+}
+
+func unwrap(err error) error {
+	status, ok := status.FromError(err)
+	if !ok {
+		return err
+	}
+
+	switch status.Code() {
+	case codes.Canceled:
+		return context.Canceled
+	default:
+		return fmt.Errorf("%s", status.Message())
+	}
 }
 
 func NewImporter(ctx context.Context, client grpc.ClientConnInterface, opts *importer.Options, proto string, config map[string]string) (importer.Importer, error) {
@@ -39,7 +55,7 @@ func NewImporter(ctx context.Context, client grpc.ClientConnInterface, opts *imp
 
 	res, err := importer.GrpcClientScan.Init(ctx, &initReq)
 	if err != nil {
-		return nil, err
+		return nil, unwrap(err)
 	}
 
 	if res.Error != nil {
@@ -52,7 +68,7 @@ func NewImporter(ctx context.Context, client grpc.ClientConnInterface, opts *imp
 func (g *GrpcImporter) Origin(ctx context.Context) (string, error) {
 	info, err := g.GrpcClientScan.Info(ctx, &grpc_importer_pkg.InfoRequest{})
 	if err != nil {
-		return "", err
+		return "", unwrap(err)
 	}
 	return info.GetOrigin(), nil
 }
@@ -60,7 +76,7 @@ func (g *GrpcImporter) Origin(ctx context.Context) (string, error) {
 func (g *GrpcImporter) Type(ctx context.Context) (string, error) {
 	info, err := g.GrpcClientScan.Info(ctx, &grpc_importer_pkg.InfoRequest{})
 	if err != nil {
-		return "", err
+		return "", unwrap(err)
 	}
 	return info.GetType(), nil
 }
@@ -68,7 +84,7 @@ func (g *GrpcImporter) Type(ctx context.Context) (string, error) {
 func (g *GrpcImporter) Root(ctx context.Context) (string, error) {
 	info, err := g.GrpcClientScan.Info(context.Background(), &grpc_importer_pkg.InfoRequest{})
 	if err != nil {
-		return "", err
+		return "", unwrap(err)
 	}
 	return info.GetRoot(), nil
 }
@@ -76,7 +92,7 @@ func (g *GrpcImporter) Root(ctx context.Context) (string, error) {
 func (g *GrpcImporter) Close(ctx context.Context) error {
 	_, err := g.GrpcClientScan.Close(ctx, &grpc_importer_pkg.CloseRequest{})
 	if err != nil {
-		return fmt.Errorf("failed to close importer: %w", err)
+		return fmt.Errorf("failed to close importer: %w", unwrap(err))
 	}
 	return nil
 }
@@ -111,7 +127,7 @@ func (g *GrpcReader) Read(p []byte) (n int, err error) {
 			Pathname: g.path,
 		})
 		if err != nil {
-			return 0, fmt.Errorf("failed to open file %s: %w", g.path, err)
+			return 0, fmt.Errorf("failed to open file %s: %w", g.path, unwrap(err))
 		}
 	}
 
@@ -120,7 +136,7 @@ func (g *GrpcReader) Read(p []byte) (n int, err error) {
 		if err == io.EOF {
 			return 0, io.EOF
 		}
-		return 0, fmt.Errorf("failed to receive file data: %w", err)
+		return 0, fmt.Errorf("failed to receive file data: %w", unwrap(err))
 	}
 	if fileResponse.GetChunk() != nil {
 		g.buf.Write(fileResponse.GetChunk())
@@ -137,7 +153,7 @@ func (g *GrpcReader) Close() error {
 		Pathname: g.path,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to close record %s: %w", g.path, err)
+		return fmt.Errorf("failed to close record %s: %w", g.path, unwrap(err))
 	}
 	return nil
 }
@@ -145,7 +161,7 @@ func (g *GrpcReader) Close() error {
 func (g *GrpcImporter) Scan(ctx context.Context) (<-chan *importer.ScanResult, error) {
 	stream, err := g.GrpcClientScan.Scan(ctx, &grpc_importer_pkg.ScanRequest{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to start scan: %w", err)
+		return nil, fmt.Errorf("failed to start scan: %w", unwrap(err))
 	}
 
 	results := make(chan *importer.ScanResult, 1000)
@@ -158,7 +174,7 @@ func (g *GrpcImporter) Scan(ctx context.Context) (<-chan *importer.ScanResult, e
 				if err == io.EOF {
 					break
 				}
-				results <- importer.NewScanError("", fmt.Errorf("failed to receive scan response: %w", err))
+				results <- importer.NewScanError("", fmt.Errorf("failed to receive scan response: %w", unwrap(err)))
 			}
 			isXattr := false
 			if response.GetRecord().GetXattr() != nil {
