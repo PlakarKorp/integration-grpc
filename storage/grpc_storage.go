@@ -35,8 +35,6 @@ type GrpcStorage struct {
 	GrpcClient grpc_storage.StoreClient
 }
 
-const bufferSize = 16 * 1024
-
 func unwrap(err error) error {
 	if err == nil {
 		return nil
@@ -111,11 +109,11 @@ func (s *GrpcStorage) Size(ctx context.Context) (int64, error) {
 	return resp.Size, nil
 }
 
-func SendChunks(rd io.ReadCloser, chunkSendFn func(chunk []byte) error) (int64, error) {
-	buffer := make([]byte, bufferSize)
+func SendChunks(rd io.Reader, chunkSendFn func(chunk []byte) error) (int64, error) {
+	// 1MB buffer, the underlying grpc transport limits us to 4MB.
+	buffer := make([]byte, 1024*1024)
 	var totalBytes int64
 
-	defer rd.Close()
 	for {
 		n, err := rd.Read(buffer)
 		if n > 0 {
@@ -221,7 +219,7 @@ func (s *GrpcStorage) PutState(ctx context.Context, mac objects.MAC, rd io.Reade
 		return 0, fmt.Errorf("failed to send MAC: %w", unwrap(err))
 	}
 
-	n, err := SendChunks(io.NopCloser(rd), func(chunk []byte) error {
+	n, err := SendChunks(rd, func(chunk []byte) error {
 		return stream.Send(&grpc_storage.PutStateRequest{
 			Chunk: chunk,
 		})
@@ -292,7 +290,7 @@ func (s *GrpcStorage) PutPackfile(ctx context.Context, mac objects.MAC, rd io.Re
 		return 0, fmt.Errorf("failed to send MAC: %w", unwrap(err))
 	}
 
-	n, err := SendChunks(io.NopCloser(rd), func(chunk []byte) error {
+	n, err := SendChunks(rd, func(chunk []byte) error {
 		return stream.Send(&grpc_storage.PutPackfileRequest{
 			Chunk: chunk,
 		})
@@ -382,7 +380,7 @@ func (s *GrpcStorage) PutLock(ctx context.Context, lockID objects.MAC, rd io.Rea
 		return 0, fmt.Errorf("failed to send MAC: %w", unwrap(err))
 	}
 
-	n, err := SendChunks(io.NopCloser(rd), func(chunk []byte) error {
+	n, err := SendChunks(rd, func(chunk []byte) error {
 		return stream.Send(&grpc_storage.PutLockRequest{
 			Chunk: chunk,
 		})
