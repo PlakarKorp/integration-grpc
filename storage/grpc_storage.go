@@ -38,6 +38,10 @@ type GrpcStorage struct {
 const bufferSize = 16 * 1024
 
 func unwrap(err error) error {
+	if err == nil {
+		return nil
+	}
+
 	status, ok := status.FromError(err)
 	if !ok {
 		return err
