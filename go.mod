@@ -1,6 +1,6 @@
 module github.com/PlakarKorp/integration-grpc
 
-go 1.24.0
+go 1.23.4
 
 require (
 	github.com/PlakarKorp/kloset v1.0.4
