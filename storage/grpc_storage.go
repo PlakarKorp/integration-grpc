@@ -33,6 +33,7 @@ import (
 
 type GrpcStorage struct {
 	GrpcClient grpc_storage.StoreClient
+	cookie     string
 }
 
 func unwrap(err error) error {
@@ -58,7 +59,7 @@ func NewStorage(ctx context.Context, client grpc.ClientConnInterface, proto stri
 		GrpcClient: grpc_storage.NewStoreClient(client),
 	}
 
-	_, err := storage.GrpcClient.Init(ctx, &grpc_storage.InitRequest{
+	res, err := storage.GrpcClient.Init(ctx, &grpc_storage.InitRequest{
 		Proto:  proto,
 		Config: config,
 	})
@@ -66,11 +67,15 @@ func NewStorage(ctx context.Context, client grpc.ClientConnInterface, proto stri
 		return nil, unwrap(err)
 	}
 
+	storage.cookie = res.Cookie
 	return storage, nil
 }
 
 func (s *GrpcStorage) Create(ctx context.Context, config []byte) error {
-	_, err := s.GrpcClient.Create(ctx, &grpc_storage.CreateRequest{Config: config})
+	_, err := s.GrpcClient.Create(ctx, &grpc_storage.CreateRequest{
+		Config: config,
+		Cookie: s.cookie,
+	})
 	if err != nil {
 		return unwrap(err)
 	}
@@ -78,7 +83,7 @@ func (s *GrpcStorage) Create(ctx context.Context, config []byte) error {
 }
 
 func (s *GrpcStorage) Open(ctx context.Context) ([]byte, error) {
-	resp, err := s.GrpcClient.Open(ctx, &grpc_storage.OpenRequest{})
+	resp, err := s.GrpcClient.Open(ctx, &grpc_storage.OpenRequest{Cookie: s.cookie})
 	if err != nil {
 		return nil, unwrap(err)
 	}
@@ -86,7 +91,9 @@ func (s *GrpcStorage) Open(ctx context.Context) ([]byte, error) {
 }
 
 func (s *GrpcStorage) Location(ctx context.Context) (string, error) {
-	resp, err := s.GrpcClient.GetLocation(ctx, &grpc_storage.GetLocationRequest{})
+	resp, err := s.GrpcClient.GetLocation(ctx, &grpc_storage.GetLocationRequest{
+		Cookie: s.cookie,
+	})
 	if err != nil {
 		return "", unwrap(err)
 	}
@@ -94,7 +101,9 @@ func (s *GrpcStorage) Location(ctx context.Context) (string, error) {
 }
 
 func (s *GrpcStorage) Mode(ctx context.Context) (storage.Mode, error) {
-	resp, err := s.GrpcClient.GetMode(ctx, &grpc_storage.GetModeRequest{})
+	resp, err := s.GrpcClient.GetMode(ctx, &grpc_storage.GetModeRequest{
+		Cookie: s.cookie,
+	})
 	if err != nil {
 		return storage.Mode(0), unwrap(err)
 	}
@@ -102,7 +111,9 @@ func (s *GrpcStorage) Mode(ctx context.Context) (storage.Mode, error) {
 }
 
 func (s *GrpcStorage) Size(ctx context.Context) (int64, error) {
-	resp, err := s.GrpcClient.GetSize(ctx, &grpc_storage.GetSizeRequest{})
+	resp, err := s.GrpcClient.GetSize(ctx, &grpc_storage.GetSizeRequest{
+		Cookie: s.cookie,
+	})
 	if err != nil {
 		return -1, unwrap(err)
 	}
@@ -192,7 +203,9 @@ func toGrpcMAC(mac objects.MAC) *grpc_storage.MAC {
 }
 
 func (s *GrpcStorage) GetStates(ctx context.Context) ([]objects.MAC, error) {
-	resp, err := s.GrpcClient.GetStates(ctx, &grpc_storage.GetStatesRequest{})
+	resp, err := s.GrpcClient.GetStates(ctx, &grpc_storage.GetStatesRequest{
+		Cookie: s.cookie,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get states: %w", unwrap(err))
 	}
@@ -214,7 +227,8 @@ func (s *GrpcStorage) PutState(ctx context.Context, mac objects.MAC, rd io.Reade
 	}
 
 	err = stream.Send(&grpc_storage.PutStateRequest{
-		Mac: toGrpcMAC(mac),
+		Mac:    toGrpcMAC(mac),
+		Cookie: s.cookie,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("failed to send MAC: %w", unwrap(err))
@@ -222,7 +236,8 @@ func (s *GrpcStorage) PutState(ctx context.Context, mac objects.MAC, rd io.Reade
 
 	n, err := SendChunks(io.NopCloser(rd), func(chunk []byte) error {
 		err := stream.Send(&grpc_storage.PutStateRequest{
-			Chunk: chunk,
+			Chunk:  chunk,
+			Cookie: s.cookie,
 		})
 
 		if err == io.EOF {
@@ -244,7 +259,8 @@ func (s *GrpcStorage) PutState(ctx context.Context, mac objects.MAC, rd io.Reade
 
 func (s *GrpcStorage) GetState(ctx context.Context, mac objects.MAC) (io.ReadCloser, error) {
 	stream, err := s.GrpcClient.GetState(ctx, &grpc_storage.GetStateRequest{
-		Mac: toGrpcMAC(mac),
+		Mac:    toGrpcMAC(mac),
+		Cookie: s.cookie,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("get state: %w", unwrap(err))
@@ -261,7 +277,8 @@ func (s *GrpcStorage) GetState(ctx context.Context, mac objects.MAC) (io.ReadClo
 
 func (s *GrpcStorage) DeleteState(ctx context.Context, mac objects.MAC) error {
 	_, err := s.GrpcClient.DeleteState(ctx, &grpc_storage.DeleteStateRequest{
-		Mac: toGrpcMAC(mac),
+		Mac:    toGrpcMAC(mac),
+		Cookie: s.cookie,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to delete state: %w", unwrap(err))
@@ -270,7 +287,9 @@ func (s *GrpcStorage) DeleteState(ctx context.Context, mac objects.MAC) error {
 }
 
 func (s *GrpcStorage) GetPackfiles(ctx context.Context) ([]objects.MAC, error) {
-	resp, err := s.GrpcClient.GetPackfiles(ctx, &grpc_storage.GetPackfilesRequest{})
+	resp, err := s.GrpcClient.GetPackfiles(ctx, &grpc_storage.GetPackfilesRequest{
+		Cookie: s.cookie,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get packfiles: %w", unwrap(err))
 	}
@@ -292,7 +311,8 @@ func (s *GrpcStorage) PutPackfile(ctx context.Context, mac objects.MAC, rd io.Re
 	}
 
 	err = stream.Send(&grpc_storage.PutPackfileRequest{
-		Mac: toGrpcMAC(mac),
+		Mac:    toGrpcMAC(mac),
+		Cookie: s.cookie,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("failed to send MAC: %w", unwrap(err))
@@ -300,7 +320,8 @@ func (s *GrpcStorage) PutPackfile(ctx context.Context, mac objects.MAC, rd io.Re
 
 	n, err := SendChunks(io.NopCloser(rd), func(chunk []byte) error {
 		err := stream.Send(&grpc_storage.PutPackfileRequest{
-			Chunk: chunk,
+			Chunk:  chunk,
+			Cookie: s.cookie,
 		})
 
 		if err == io.EOF {
@@ -323,7 +344,8 @@ func (s *GrpcStorage) PutPackfile(ctx context.Context, mac objects.MAC, rd io.Re
 
 func (s *GrpcStorage) GetPackfile(ctx context.Context, mac objects.MAC) (io.ReadCloser, error) {
 	stream, err := s.GrpcClient.GetPackfile(ctx, &grpc_storage.GetPackfileRequest{
-		Mac: toGrpcMAC(mac),
+		Mac:    toGrpcMAC(mac),
+		Cookie: s.cookie,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get packfile: %w", unwrap(err))
@@ -343,6 +365,7 @@ func (s *GrpcStorage) GetPackfileBlob(ctx context.Context, mac objects.MAC, offs
 		Mac:    toGrpcMAC(mac),
 		Offset: offset,
 		Length: length,
+		Cookie: s.cookie,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get packfile blob: %w", unwrap(err))
@@ -359,7 +382,8 @@ func (s *GrpcStorage) GetPackfileBlob(ctx context.Context, mac objects.MAC, offs
 
 func (s *GrpcStorage) DeletePackfile(ctx context.Context, mac objects.MAC) error {
 	_, err := s.GrpcClient.DeletePackfile(ctx, &grpc_storage.DeletePackfileRequest{
-		Mac: toGrpcMAC(mac),
+		Mac:    toGrpcMAC(mac),
+		Cookie: s.cookie,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to delete packfile: %w", unwrap(err))
@@ -368,7 +392,9 @@ func (s *GrpcStorage) DeletePackfile(ctx context.Context, mac objects.MAC) error
 }
 
 func (s *GrpcStorage) GetLocks(ctx context.Context) ([]objects.MAC, error) {
-	resp, err := s.GrpcClient.GetLocks(ctx, &grpc_storage.GetLocksRequest{})
+	resp, err := s.GrpcClient.GetLocks(ctx, &grpc_storage.GetLocksRequest{
+		Cookie: s.cookie,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get locks: %w", unwrap(err))
 	}
@@ -390,7 +416,8 @@ func (s *GrpcStorage) PutLock(ctx context.Context, lockID objects.MAC, rd io.Rea
 	}
 
 	err = stream.Send(&grpc_storage.PutLockRequest{
-		Mac: toGrpcMAC(lockID),
+		Mac:    toGrpcMAC(lockID),
+		Cookie: s.cookie,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("failed to send MAC: %w", unwrap(err))
@@ -398,7 +425,8 @@ func (s *GrpcStorage) PutLock(ctx context.Context, lockID objects.MAC, rd io.Rea
 
 	n, err := SendChunks(io.NopCloser(rd), func(chunk []byte) error {
 		err := stream.Send(&grpc_storage.PutLockRequest{
-			Chunk: chunk,
+			Chunk:  chunk,
+			Cookie: s.cookie,
 		})
 
 		if err == io.EOF {
@@ -420,7 +448,8 @@ func (s *GrpcStorage) PutLock(ctx context.Context, lockID objects.MAC, rd io.Rea
 
 func (s *GrpcStorage) GetLock(ctx context.Context, lockID objects.MAC) (io.ReadCloser, error) {
 	stream, err := s.GrpcClient.GetLock(ctx, &grpc_storage.GetLockRequest{
-		Mac: toGrpcMAC(lockID),
+		Mac:    toGrpcMAC(lockID),
+		Cookie: s.cookie,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get lock: %w", unwrap(err))
@@ -437,7 +466,8 @@ func (s *GrpcStorage) GetLock(ctx context.Context, lockID objects.MAC) (io.ReadC
 
 func (s *GrpcStorage) DeleteLock(ctx context.Context, lockID objects.MAC) error {
 	_, err := s.GrpcClient.DeleteLock(ctx, &grpc_storage.DeleteLockRequest{
-		Mac: toGrpcMAC(lockID),
+		Mac:    toGrpcMAC(lockID),
+		Cookie: s.cookie,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to delete lock: %w", unwrap(err))
@@ -446,6 +476,6 @@ func (s *GrpcStorage) DeleteLock(ctx context.Context, lockID objects.MAC) error 
 }
 
 func (s *GrpcStorage) Close(ctx context.Context) error {
-	_, err := s.GrpcClient.Close(ctx, &grpc_storage.CloseRequest{})
+	_, err := s.GrpcClient.Close(ctx, &grpc_storage.CloseRequest{Cookie: s.cookie})
 	return unwrap(err)
 }

@@ -40,43 +40,58 @@ message InitRequest {
     map<string, string> config = 2;
 }
 
-message InitResponse {}
+message InitResponse {
+    string cookie = 1;
+}
 
 message CreateRequest {
     bytes config = 1;
+    string cookie = 2;
 }
 
 message CreateResponse {}
 
-message OpenRequest {}
+message OpenRequest {
+    string cookie = 1;
+}
 
 message OpenResponse {
     bytes config = 1;
 }
 
-message CloseRequest {}
+message CloseRequest {
+    string cookie = 1;
+}
 
 message CloseResponse {}
 
-message GetLocationRequest {}
+message GetLocationRequest {
+    string cookie = 1;
+}
 
 message GetLocationResponse {
     string location = 1;
 }
 
-message GetModeRequest {}
+message GetModeRequest {
+    string cookie = 1;
+}
 
 message GetModeResponse {
     int32 mode = 1;
 }
 
-message GetSizeRequest {}
+message GetSizeRequest {
+    string cookie = 1;
+}
 
 message GetSizeResponse {
     int64 size = 1;
 }
 
-message GetStatesRequest {}
+message GetStatesRequest {
+    string cookie = 1;
+}
 
 message GetStatesResponse {
     repeated MAC macs = 1;
@@ -85,6 +100,7 @@ message GetStatesResponse {
 message PutStateRequest {
     MAC mac = 1;
     bytes chunk = 2;
+    string cookie = 3;
 }
 
 message PutStateResponse {
@@ -93,6 +109,7 @@ message PutStateResponse {
 
 message GetStateRequest {
     MAC mac = 1;
+    string cookie = 2;
 }
 
 message GetStateResponse {
@@ -101,11 +118,14 @@ message GetStateResponse {
 
 message DeleteStateRequest {
     MAC mac = 1;
+    string cookie = 2;
 }
 
 message DeleteStateResponse {}
 
-message GetPackfilesRequest {}
+message GetPackfilesRequest {
+    string cookie = 1;
+}
 
 message GetPackfilesResponse {
     repeated MAC macs = 1;
@@ -114,6 +134,7 @@ message GetPackfilesResponse {
 message PutPackfileRequest {
     MAC mac = 1;
     bytes chunk = 2;
+    string cookie = 3;
 }
 
 message PutPackfileResponse {
@@ -122,6 +143,7 @@ message PutPackfileResponse {
 
 message GetPackfileRequest {
     MAC mac = 1;
+    string cookie = 2;
 }
 
 message GetPackfileResponse {
@@ -132,6 +154,7 @@ message GetPackfileBlobRequest {
     MAC mac = 1;
     uint64 offset = 2;
     uint32 length = 3;
+    string cookie = 4;
 }
 
 message GetPackfileBlobResponse {
@@ -140,11 +163,14 @@ message GetPackfileBlobResponse {
 
 message DeletePackfileRequest {
     MAC mac = 1;
+    string cookie = 2;
 }
 
 message DeletePackfileResponse {}
 
-message GetLocksRequest {}
+message GetLocksRequest {
+    string cookie = 1;
+}
 
 message GetLocksResponse {
     repeated MAC macs = 1;
@@ -153,6 +179,7 @@ message GetLocksResponse {
 message PutLockRequest {
     MAC mac = 1;
     bytes chunk = 2;
+    string cookie = 3;
 }
 
 message PutLockResponse {
@@ -161,6 +188,7 @@ message PutLockResponse {
 
 message GetLockRequest {
     MAC mac = 1;
+    string cookie = 2;
 }
 
 message GetLockResponse {
@@ -169,6 +197,7 @@ message GetLockResponse {
 
 message DeleteLockRequest {
     MAC mac = 1;
+    string cookie = 2;
 }
 
 message DeleteLockResponse {}

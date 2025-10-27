@@ -26,9 +26,13 @@ message InitRequest {
   map<string, string> config = 3;
 }
 
-message InitResponse {}
+message InitResponse {
+  string cookie = 1;
+}
 
-message RootRequest {}
+message RootRequest {
+  string cookie = 1;
+}
 
 message RootResponse {
   string root_path = 1;
@@ -36,6 +40,7 @@ message RootResponse {
 
 message CreateDirectoryRequest {
   string pathname = 1;
+  string cookie = 2;
 }
 
 message CreateDirectoryResponse {}
@@ -45,6 +50,7 @@ message StoreFileRequest {
     Header header = 1;
     Data data = 2;
   }
+  string cookie = 3;
 }
 
 message Header {
@@ -76,6 +82,7 @@ message FileInfo {
 message SetPermissionsRequest {
   string pathname = 1;
   FileInfo file_info = 2;
+  string cookie = 3;
 }
 
 message SetPermissionsResponse {}
@@ -84,10 +91,13 @@ message CreateLinkRequest {
   string oldname = 1;
   string newname = 2;
   uint32 ltype = 3;
+  string cookie = 4;
 }
 
 message CreateLinkResponse {}
 
-message CloseRequest {}
+message CloseRequest {
+  string cookie = 1;
+}
 
 message CloseResponse {}

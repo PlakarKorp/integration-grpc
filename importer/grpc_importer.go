@@ -19,6 +19,7 @@ import (
 type GrpcImporter struct {
 	GrpcClientScan   grpc_importer_pkg.ImporterClient
 	GrpcClientReader grpc_importer_pkg.ImporterClient
+	cookie           string
 }
 
 func unwrap(err error) error {
@@ -66,11 +67,14 @@ func NewImporter(ctx context.Context, client grpc.ClientConnInterface, opts *imp
 		return nil, fmt.Errorf("%s", *res.Error)
 	}
 
+	importer.cookie = res.Cookie
 	return importer, nil
 }
 
 func (g *GrpcImporter) Origin(ctx context.Context) (string, error) {
-	info, err := g.GrpcClientScan.Info(ctx, &grpc_importer_pkg.InfoRequest{})
+	info, err := g.GrpcClientScan.Info(ctx, &grpc_importer_pkg.InfoRequest{
+		Cookie: g.cookie,
+	})
 	if err != nil {
 		return "", unwrap(err)
 	}
@@ -78,7 +82,9 @@ func (g *GrpcImporter) Origin(ctx context.Context) (string, error) {
 }
 
 func (g *GrpcImporter) Type(ctx context.Context) (string, error) {
-	info, err := g.GrpcClientScan.Info(ctx, &grpc_importer_pkg.InfoRequest{})
+	info, err := g.GrpcClientScan.Info(ctx, &grpc_importer_pkg.InfoRequest{
+		Cookie: g.cookie,
+	})
 	if err != nil {
 		return "", unwrap(err)
 	}
@@ -86,7 +92,9 @@ func (g *GrpcImporter) Type(ctx context.Context) (string, error) {
 }
 
 func (g *GrpcImporter) Root(ctx context.Context) (string, error) {
-	info, err := g.GrpcClientScan.Info(context.Background(), &grpc_importer_pkg.InfoRequest{})
+	info, err := g.GrpcClientScan.Info(context.Background(), &grpc_importer_pkg.InfoRequest{
+		Cookie: g.cookie,
+	})
 	if err != nil {
 		return "", unwrap(err)
 	}
@@ -94,7 +102,9 @@ func (g *GrpcImporter) Root(ctx context.Context) (string, error) {
 }
 
 func (g *GrpcImporter) Close(ctx context.Context) error {
-	_, err := g.GrpcClientScan.Close(ctx, &grpc_importer_pkg.CloseRequest{})
+	_, err := g.GrpcClientScan.Close(ctx, &grpc_importer_pkg.CloseRequest{
+		Cookie: g.cookie,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to close importer: %w", unwrap(err))
 	}
@@ -102,6 +112,7 @@ func (g *GrpcImporter) Close(ctx context.Context) error {
 }
 
 type GrpcReader struct {
+	cookie string
 	client grpc_importer_pkg.ImporterClient
 	stream grpc_importer_pkg.Importer_OpenReaderClient
 	path   string
@@ -109,8 +120,9 @@ type GrpcReader struct {
 	ctx    context.Context
 }
 
-func NewGrpcReader(ctx context.Context, client grpc_importer_pkg.ImporterClient, path string) *GrpcReader {
+func NewGrpcReader(ctx context.Context, client grpc_importer_pkg.ImporterClient, path, cookie string) *GrpcReader {
 	return &GrpcReader{
+		cookie: cookie,
 		client: client,
 		buf:    bytes.NewBuffer(nil),
 		path:   path,
@@ -128,6 +140,7 @@ func (g *GrpcReader) Read(p []byte) (n int, err error) {
 
 	if g.stream == nil {
 		g.stream, err = g.client.OpenReader(g.ctx, &grpc_importer_pkg.OpenReaderRequest{
+			Cookie:   g.cookie,
 			Pathname: g.path,
 		})
 		if err != nil {
@@ -154,6 +167,7 @@ func (g *GrpcReader) Read(p []byte) (n int, err error) {
 
 func (g *GrpcReader) Close() error {
 	_, err := g.client.CloseReader(g.ctx, &grpc_importer_pkg.CloseReaderRequest{
+		Cookie:   g.cookie,
 		Pathname: g.path,
 	})
 	if err != nil {
@@ -163,7 +177,9 @@ func (g *GrpcReader) Close() error {
 }
 
 func (g *GrpcImporter) Scan(ctx context.Context) (<-chan *importer.ScanResult, error) {
-	stream, err := g.GrpcClientScan.Scan(ctx, &grpc_importer_pkg.ScanRequest{})
+	stream, err := g.GrpcClientScan.Scan(ctx, &grpc_importer_pkg.ScanRequest{
+		Cookie: g.cookie,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to start scan: %w", unwrap(err))
 	}
@@ -190,7 +206,7 @@ func (g *GrpcImporter) Scan(ctx context.Context) (<-chan *importer.ScanResult, e
 					Record: &importer.ScanRecord{
 						Pathname: response.GetPathname(),
 						Reader: importer.NewLazyReader(func() (io.ReadCloser, error) {
-							return NewGrpcReader(ctx, g.GrpcClientReader, response.GetPathname()), nil
+							return NewGrpcReader(ctx, g.GrpcClientReader, response.GetPathname(), g.cookie), nil
 						}),
 						FileInfo: objects.FileInfo{
 							Lname:      response.GetRecord().GetFileinfo().GetName(),
