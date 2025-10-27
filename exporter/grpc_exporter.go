@@ -22,6 +22,7 @@ import (
 
 type GrpcExporter struct {
 	GrpcClient grpc_exporter.ExporterClient
+	cookie     string
 }
 
 func unwrap(err error) error {
@@ -47,7 +48,7 @@ func NewExporter(ctx context.Context, client grpc.ClientConnInterface, opts *exp
 		GrpcClient: grpc_exporter.NewExporterClient(client),
 	}
 
-	_, err := exporter.GrpcClient.Init(ctx, &grpc_exporter.InitRequest{
+	res, err := exporter.GrpcClient.Init(ctx, &grpc_exporter.InitRequest{
 		Options: &grpc_exporter.Options{
 			Maxconcurrency: int64(opts.MaxConcurrency),
 		},
@@ -58,21 +59,25 @@ func NewExporter(ctx context.Context, client grpc.ClientConnInterface, opts *exp
 		return nil, unwrap(err)
 	}
 
+	exporter.cookie = res.Cookie
 	return exporter, nil
 }
 
 func (g *GrpcExporter) Close(ctx context.Context) error {
-	_, err := g.GrpcClient.Close(ctx, &grpc_exporter.CloseRequest{})
+	_, err := g.GrpcClient.Close(ctx, &grpc_exporter.CloseRequest{Cookie: g.cookie})
 	return unwrap(err)
 }
 
 func (g *GrpcExporter) CreateDirectory(ctx context.Context, pathname string) error {
-	_, err := g.GrpcClient.CreateDirectory(ctx, &grpc_exporter.CreateDirectoryRequest{Pathname: pathname})
+	_, err := g.GrpcClient.CreateDirectory(ctx, &grpc_exporter.CreateDirectoryRequest{
+		Cookie:   g.cookie,
+		Pathname: pathname,
+	})
 	return unwrap(err)
 }
 
 func (g *GrpcExporter) Root(ctx context.Context) (string, error) {
-	info, err := g.GrpcClient.Root(ctx, &grpc_exporter.RootRequest{})
+	info, err := g.GrpcClient.Root(ctx, &grpc_exporter.RootRequest{Cookie: g.cookie})
 	if err != nil {
 		return "", unwrap(err)
 	}
@@ -81,6 +86,7 @@ func (g *GrpcExporter) Root(ctx context.Context) (string, error) {
 
 func (g *GrpcExporter) SetPermissions(ctx context.Context, pathname string, fileinfo *objects.FileInfo) error {
 	_, err := g.GrpcClient.SetPermissions(ctx, &grpc_exporter.SetPermissionsRequest{
+		Cookie:   g.cookie,
 		Pathname: pathname,
 		FileInfo: &grpc_exporter.FileInfo{
 			Name:      fileinfo.Lname,
@@ -101,6 +107,7 @@ func (g *GrpcExporter) SetPermissions(ctx context.Context, pathname string, file
 
 func (g *GrpcExporter) CreateLink(ctx context.Context, oldname string, newname string, ltype exporter.LinkType) error {
 	_, err := g.GrpcClient.CreateLink(ctx, &grpc_exporter.CreateLinkRequest{
+		Cookie:  g.cookie,
 		Oldname: oldname,
 		Newname: newname,
 		Ltype:   uint32(ltype),
@@ -116,6 +123,7 @@ func (g *GrpcExporter) StoreFile(ctx context.Context, pathname string, fp io.Rea
 	}
 
 	if err := stream.Send(&grpc_exporter.StoreFileRequest{
+		Cookie: g.cookie,
 		Type: &grpc_exporter.StoreFileRequest_Header{
 			Header: &grpc_exporter.Header{
 				Pathname: pathname,
@@ -137,6 +145,7 @@ func (g *GrpcExporter) StoreFile(ctx context.Context, pathname string, fp io.Rea
 		}
 
 		if err := stream.Send(&grpc_exporter.StoreFileRequest{
+			Cookie: g.cookie,
 			Type: &grpc_exporter.StoreFileRequest_Data{
 				Data: &grpc_exporter.Data{
 					Chunk: buf[:n],

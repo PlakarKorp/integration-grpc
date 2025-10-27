@@ -210,6 +210,7 @@ func (x *InitRequest) GetConfig() map[string]string {
 type InitResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Error         *string                `protobuf:"bytes,1,opt,name=error,proto3,oneof" json:"error,omitempty"`
+	Cookie        string                 `protobuf:"bytes,2,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -251,8 +252,16 @@ func (x *InitResponse) GetError() string {
 	return ""
 }
 
+func (x *InitResponse) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
+}
+
 type InfoRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cookie        string                 `protobuf:"bytes,1,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -285,6 +294,13 @@ func (x *InfoRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use InfoRequest.ProtoReflect.Descriptor instead.
 func (*InfoRequest) Descriptor() ([]byte, []int) {
 	return file_importer_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *InfoRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
 }
 
 type InfoResponse struct {
@@ -349,6 +365,7 @@ func (x *InfoResponse) GetRoot() string {
 
 type ScanRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cookie        string                 `protobuf:"bytes,1,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -381,6 +398,13 @@ func (x *ScanRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use ScanRequest.ProtoReflect.Descriptor instead.
 func (*ScanRequest) Descriptor() ([]byte, []int) {
 	return file_importer_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ScanRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
 }
 
 type ScanResponse struct {
@@ -860,6 +884,7 @@ func (x *ScanResponseError) GetSize() int64 {
 type OpenReaderRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Pathname      string                 `protobuf:"bytes,1,opt,name=pathname,proto3" json:"pathname,omitempty"`
+	Cookie        string                 `protobuf:"bytes,2,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -897,6 +922,13 @@ func (*OpenReaderRequest) Descriptor() ([]byte, []int) {
 func (x *OpenReaderRequest) GetPathname() string {
 	if x != nil {
 		return x.Pathname
+	}
+	return ""
+}
+
+func (x *OpenReaderRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
 	}
 	return ""
 }
@@ -948,6 +980,7 @@ func (x *OpenReaderResponse) GetChunk() []byte {
 type CloseReaderRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Pathname      string                 `protobuf:"bytes,1,opt,name=pathname,proto3" json:"pathname,omitempty"`
+	Cookie        string                 `protobuf:"bytes,2,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -985,6 +1018,13 @@ func (*CloseReaderRequest) Descriptor() ([]byte, []int) {
 func (x *CloseReaderRequest) GetPathname() string {
 	if x != nil {
 		return x.Pathname
+	}
+	return ""
+}
+
+func (x *CloseReaderRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
 	}
 	return ""
 }
@@ -1027,6 +1067,7 @@ func (*CloseReaderResponse) Descriptor() ([]byte, []int) {
 
 type CloseRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cookie        string                 `protobuf:"bytes,1,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1059,6 +1100,13 @@ func (x *CloseRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use CloseRequest.ProtoReflect.Descriptor instead.
 func (*CloseRequest) Descriptor() ([]byte, []int) {
 	return file_importer_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *CloseRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
 }
 
 type CloseResponse struct {
@@ -1114,16 +1162,19 @@ const file_importer_proto_rawDesc = "" +
 	"\x06config\x18\x03 \x03(\v2!.importer.InitRequest.ConfigEntryR\x06config\x1a9\n" +
 	"\vConfigEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"3\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"K\n" +
 	"\fInitResponse\x12\x19\n" +
-	"\x05error\x18\x01 \x01(\tH\x00R\x05error\x88\x01\x01B\b\n" +
-	"\x06_error\"\r\n" +
-	"\vInfoRequest\"N\n" +
+	"\x05error\x18\x01 \x01(\tH\x00R\x05error\x88\x01\x01\x12\x16\n" +
+	"\x06cookie\x18\x02 \x01(\tR\x06cookieB\b\n" +
+	"\x06_error\"%\n" +
+	"\vInfoRequest\x12\x16\n" +
+	"\x06cookie\x18\x01 \x01(\tR\x06cookie\"N\n" +
 	"\fInfoResponse\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x16\n" +
 	"\x06origin\x18\x02 \x01(\tR\x06origin\x12\x12\n" +
-	"\x04root\x18\x03 \x01(\tR\x04root\"\r\n" +
-	"\vScanRequest\"\x91\x01\n" +
+	"\x04root\x18\x03 \x01(\tR\x04root\"%\n" +
+	"\vScanRequest\x12\x16\n" +
+	"\x06cookie\x18\x01 \x01(\tR\x06cookie\"\x91\x01\n" +
 	"\fScanResponse\x12\x1a\n" +
 	"\bpathname\x18\x01 \x01(\tR\bpathname\x12+\n" +
 	"\x05error\x18\x03 \x01(\v2\x13.importer.ScanErrorH\x00R\x05error\x12.\n" +
@@ -1158,15 +1209,18 @@ const file_importer_proto_rawDesc = "" +
 	"\x05flags\x18\f \x01(\rR\x05flags\";\n" +
 	"\x11ScanResponseError\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
-	"\x04size\x18\x03 \x01(\x03R\x04size\"/\n" +
+	"\x04size\x18\x03 \x01(\x03R\x04size\"G\n" +
 	"\x11OpenReaderRequest\x12\x1a\n" +
-	"\bpathname\x18\x01 \x01(\tR\bpathname\"*\n" +
+	"\bpathname\x18\x01 \x01(\tR\bpathname\x12\x16\n" +
+	"\x06cookie\x18\x02 \x01(\tR\x06cookie\"*\n" +
 	"\x12OpenReaderResponse\x12\x14\n" +
-	"\x05chunk\x18\x01 \x01(\fR\x05chunk\"0\n" +
+	"\x05chunk\x18\x01 \x01(\fR\x05chunk\"H\n" +
 	"\x12CloseReaderRequest\x12\x1a\n" +
-	"\bpathname\x18\x01 \x01(\tR\bpathname\"\x15\n" +
-	"\x13CloseReaderResponse\"\x0e\n" +
-	"\fCloseRequest\"\x0f\n" +
+	"\bpathname\x18\x01 \x01(\tR\bpathname\x12\x16\n" +
+	"\x06cookie\x18\x02 \x01(\tR\x06cookie\"\x15\n" +
+	"\x13CloseReaderResponse\"&\n" +
+	"\fCloseRequest\x12\x16\n" +
+	"\x06cookie\x18\x01 \x01(\tR\x06cookie\"\x0f\n" +
 	"\rCloseResponse*\x87\x01\n" +
 	"\x15ExtendedAttributeType\x12'\n" +
 	"#EXTENDED_ATTRIBUTE_TYPE_UNSPECIFIED\x10\x00\x12$\n" +

@@ -31,9 +31,11 @@ message InitRequest {
 
 message InitResponse {
   optional string error = 1;
+  string cookie = 2;
 }
 
 message InfoRequest {
+  string cookie = 1;
 }
 
 message InfoResponse {
@@ -43,6 +45,7 @@ message InfoResponse {
 }
 
 message ScanRequest {
+  string cookie = 1;
 }
 
 message ScanResponse {
@@ -101,6 +104,7 @@ message ScanResponseError {
 
 message OpenReaderRequest {
   string pathname = 1;
+  string cookie = 2;
 }
 
 message OpenReaderResponse {
@@ -109,12 +113,14 @@ message OpenReaderResponse {
 
 message CloseReaderRequest {
   string pathname = 1;
+  string cookie = 2;
 }
 
 message CloseReaderResponse {
 }
 
 message CloseRequest {
+  string cookie = 1;
 }
 
 message CloseResponse {

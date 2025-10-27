@@ -128,6 +128,7 @@ func (x *InitRequest) GetConfig() map[string]string {
 
 type InitResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cookie        string                 `protobuf:"bytes,1,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -162,8 +163,16 @@ func (*InitResponse) Descriptor() ([]byte, []int) {
 	return file_exporter_proto_rawDescGZIP(), []int{2}
 }
 
+func (x *InitResponse) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
+}
+
 type RootRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cookie        string                 `protobuf:"bytes,1,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -196,6 +205,13 @@ func (x *RootRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use RootRequest.ProtoReflect.Descriptor instead.
 func (*RootRequest) Descriptor() ([]byte, []int) {
 	return file_exporter_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *RootRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
 }
 
 type RootResponse struct {
@@ -245,6 +261,7 @@ func (x *RootResponse) GetRootPath() string {
 type CreateDirectoryRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Pathname      string                 `protobuf:"bytes,1,opt,name=pathname,proto3" json:"pathname,omitempty"`
+	Cookie        string                 `protobuf:"bytes,2,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -282,6 +299,13 @@ func (*CreateDirectoryRequest) Descriptor() ([]byte, []int) {
 func (x *CreateDirectoryRequest) GetPathname() string {
 	if x != nil {
 		return x.Pathname
+	}
+	return ""
+}
+
+func (x *CreateDirectoryRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
 	}
 	return ""
 }
@@ -329,6 +353,7 @@ type StoreFileRequest struct {
 	//	*StoreFileRequest_Header
 	//	*StoreFileRequest_Data
 	Type          isStoreFileRequest_Type `protobuf_oneof:"type"`
+	Cookie        string                  `protobuf:"bytes,3,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -386,6 +411,13 @@ func (x *StoreFileRequest) GetData() *Data {
 		}
 	}
 	return nil
+}
+
+func (x *StoreFileRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
 }
 
 type isStoreFileRequest_Type interface {
@@ -672,6 +704,7 @@ type SetPermissionsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Pathname      string                 `protobuf:"bytes,1,opt,name=pathname,proto3" json:"pathname,omitempty"`
 	FileInfo      *FileInfo              `protobuf:"bytes,2,opt,name=file_info,json=fileInfo,proto3" json:"file_info,omitempty"`
+	Cookie        string                 `protobuf:"bytes,3,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -720,6 +753,13 @@ func (x *SetPermissionsRequest) GetFileInfo() *FileInfo {
 	return nil
 }
 
+func (x *SetPermissionsRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
+}
+
 type SetPermissionsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -761,6 +801,7 @@ type CreateLinkRequest struct {
 	Oldname       string                 `protobuf:"bytes,1,opt,name=oldname,proto3" json:"oldname,omitempty"`
 	Newname       string                 `protobuf:"bytes,2,opt,name=newname,proto3" json:"newname,omitempty"`
 	Ltype         uint32                 `protobuf:"varint,3,opt,name=ltype,proto3" json:"ltype,omitempty"`
+	Cookie        string                 `protobuf:"bytes,4,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -816,6 +857,13 @@ func (x *CreateLinkRequest) GetLtype() uint32 {
 	return 0
 }
 
+func (x *CreateLinkRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
+}
+
 type CreateLinkResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -854,6 +902,7 @@ func (*CreateLinkResponse) Descriptor() ([]byte, []int) {
 
 type CloseRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cookie        string                 `protobuf:"bytes,1,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -886,6 +935,13 @@ func (x *CloseRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use CloseRequest.ProtoReflect.Descriptor instead.
 func (*CloseRequest) Descriptor() ([]byte, []int) {
 	return file_exporter_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *CloseRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
 }
 
 type CloseResponse struct {
@@ -937,17 +993,21 @@ const file_exporter_proto_rawDesc = "" +
 	"\x06config\x18\x03 \x03(\v2!.exporter.InitRequest.ConfigEntryR\x06config\x1a9\n" +
 	"\vConfigEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x0e\n" +
-	"\fInitResponse\"\r\n" +
-	"\vRootRequest\"+\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"&\n" +
+	"\fInitResponse\x12\x16\n" +
+	"\x06cookie\x18\x01 \x01(\tR\x06cookie\"%\n" +
+	"\vRootRequest\x12\x16\n" +
+	"\x06cookie\x18\x01 \x01(\tR\x06cookie\"+\n" +
 	"\fRootResponse\x12\x1b\n" +
-	"\troot_path\x18\x01 \x01(\tR\brootPath\"4\n" +
+	"\troot_path\x18\x01 \x01(\tR\brootPath\"L\n" +
 	"\x16CreateDirectoryRequest\x12\x1a\n" +
-	"\bpathname\x18\x01 \x01(\tR\bpathname\"\x19\n" +
-	"\x17CreateDirectoryResponse\"l\n" +
+	"\bpathname\x18\x01 \x01(\tR\bpathname\x12\x16\n" +
+	"\x06cookie\x18\x02 \x01(\tR\x06cookie\"\x19\n" +
+	"\x17CreateDirectoryResponse\"\x84\x01\n" +
 	"\x10StoreFileRequest\x12*\n" +
 	"\x06header\x18\x01 \x01(\v2\x10.exporter.HeaderH\x00R\x06header\x12$\n" +
-	"\x04data\x18\x02 \x01(\v2\x0e.exporter.DataH\x00R\x04dataB\x06\n" +
+	"\x04data\x18\x02 \x01(\v2\x0e.exporter.DataH\x00R\x04data\x12\x16\n" +
+	"\x06cookie\x18\x03 \x01(\tR\x06cookieB\x06\n" +
 	"\x04type\"8\n" +
 	"\x06Header\x12\x1a\n" +
 	"\bpathname\x18\x01 \x01(\tR\bpathname\x12\x12\n" +
@@ -968,17 +1028,20 @@ const file_exporter_proto_rawDesc = "" +
 	"\busername\x18\n" +
 	" \x01(\tR\busername\x12\x1c\n" +
 	"\tgroupname\x18\v \x01(\tR\tgroupname\x12\x14\n" +
-	"\x05flags\x18\f \x01(\rR\x05flags\"d\n" +
+	"\x05flags\x18\f \x01(\rR\x05flags\"|\n" +
 	"\x15SetPermissionsRequest\x12\x1a\n" +
 	"\bpathname\x18\x01 \x01(\tR\bpathname\x12/\n" +
-	"\tfile_info\x18\x02 \x01(\v2\x12.exporter.FileInfoR\bfileInfo\"\x18\n" +
-	"\x16SetPermissionsResponse\"]\n" +
+	"\tfile_info\x18\x02 \x01(\v2\x12.exporter.FileInfoR\bfileInfo\x12\x16\n" +
+	"\x06cookie\x18\x03 \x01(\tR\x06cookie\"\x18\n" +
+	"\x16SetPermissionsResponse\"u\n" +
 	"\x11CreateLinkRequest\x12\x18\n" +
 	"\aoldname\x18\x01 \x01(\tR\aoldname\x12\x18\n" +
 	"\anewname\x18\x02 \x01(\tR\anewname\x12\x14\n" +
-	"\x05ltype\x18\x03 \x01(\rR\x05ltype\"\x14\n" +
-	"\x12CreateLinkResponse\"\x0e\n" +
-	"\fCloseRequest\"\x0f\n" +
+	"\x05ltype\x18\x03 \x01(\rR\x05ltype\x12\x16\n" +
+	"\x06cookie\x18\x04 \x01(\tR\x06cookie\"\x14\n" +
+	"\x12CreateLinkResponse\"&\n" +
+	"\fCloseRequest\x12\x16\n" +
+	"\x06cookie\x18\x01 \x01(\tR\x06cookie\"\x0f\n" +
 	"\rCloseResponse2\xf0\x03\n" +
 	"\bExporter\x125\n" +
 	"\x04Init\x12\x15.exporter.InitRequest\x1a\x16.exporter.InitResponse\x125\n" +
