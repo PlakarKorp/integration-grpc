@@ -119,6 +119,7 @@ func (x *InitRequest) GetConfig() map[string]string {
 
 type InitResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cookie        string                 `protobuf:"bytes,1,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -153,9 +154,17 @@ func (*InitResponse) Descriptor() ([]byte, []int) {
 	return file_storage_proto_rawDescGZIP(), []int{2}
 }
 
+func (x *InitResponse) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
+}
+
 type CreateRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Config        []byte                 `protobuf:"bytes,1,opt,name=config,proto3" json:"config,omitempty"`
+	Cookie        string                 `protobuf:"bytes,2,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -197,6 +206,13 @@ func (x *CreateRequest) GetConfig() []byte {
 	return nil
 }
 
+func (x *CreateRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
+}
+
 type CreateResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -235,6 +251,7 @@ func (*CreateResponse) Descriptor() ([]byte, []int) {
 
 type OpenRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cookie        string                 `protobuf:"bytes,1,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -267,6 +284,13 @@ func (x *OpenRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use OpenRequest.ProtoReflect.Descriptor instead.
 func (*OpenRequest) Descriptor() ([]byte, []int) {
 	return file_storage_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *OpenRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
 }
 
 type OpenResponse struct {
@@ -315,6 +339,7 @@ func (x *OpenResponse) GetConfig() []byte {
 
 type CloseRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cookie        string                 `protobuf:"bytes,1,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -347,6 +372,13 @@ func (x *CloseRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use CloseRequest.ProtoReflect.Descriptor instead.
 func (*CloseRequest) Descriptor() ([]byte, []int) {
 	return file_storage_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *CloseRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
 }
 
 type CloseResponse struct {
@@ -387,6 +419,7 @@ func (*CloseResponse) Descriptor() ([]byte, []int) {
 
 type GetLocationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cookie        string                 `protobuf:"bytes,1,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -419,6 +452,13 @@ func (x *GetLocationRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use GetLocationRequest.ProtoReflect.Descriptor instead.
 func (*GetLocationRequest) Descriptor() ([]byte, []int) {
 	return file_storage_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *GetLocationRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
 }
 
 type GetLocationResponse struct {
@@ -467,6 +507,7 @@ func (x *GetLocationResponse) GetLocation() string {
 
 type GetModeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cookie        string                 `protobuf:"bytes,1,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -499,6 +540,13 @@ func (x *GetModeRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use GetModeRequest.ProtoReflect.Descriptor instead.
 func (*GetModeRequest) Descriptor() ([]byte, []int) {
 	return file_storage_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *GetModeRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
 }
 
 type GetModeResponse struct {
@@ -547,6 +595,7 @@ func (x *GetModeResponse) GetMode() int32 {
 
 type GetSizeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cookie        string                 `protobuf:"bytes,1,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -579,6 +628,13 @@ func (x *GetSizeRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use GetSizeRequest.ProtoReflect.Descriptor instead.
 func (*GetSizeRequest) Descriptor() ([]byte, []int) {
 	return file_storage_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *GetSizeRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
 }
 
 type GetSizeResponse struct {
@@ -627,6 +683,7 @@ func (x *GetSizeResponse) GetSize() int64 {
 
 type GetStatesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cookie        string                 `protobuf:"bytes,1,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -659,6 +716,13 @@ func (x *GetStatesRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use GetStatesRequest.ProtoReflect.Descriptor instead.
 func (*GetStatesRequest) Descriptor() ([]byte, []int) {
 	return file_storage_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *GetStatesRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
 }
 
 type GetStatesResponse struct {
@@ -709,6 +773,7 @@ type PutStateRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Mac           *MAC                   `protobuf:"bytes,1,opt,name=mac,proto3" json:"mac,omitempty"`
 	Chunk         []byte                 `protobuf:"bytes,2,opt,name=chunk,proto3" json:"chunk,omitempty"`
+	Cookie        string                 `protobuf:"bytes,3,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -755,6 +820,13 @@ func (x *PutStateRequest) GetChunk() []byte {
 		return x.Chunk
 	}
 	return nil
+}
+
+func (x *PutStateRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
 }
 
 type PutStateResponse struct {
@@ -804,6 +876,7 @@ func (x *PutStateResponse) GetBytesWritten() int64 {
 type GetStateRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Mac           *MAC                   `protobuf:"bytes,1,opt,name=mac,proto3" json:"mac,omitempty"`
+	Cookie        string                 `protobuf:"bytes,2,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -843,6 +916,13 @@ func (x *GetStateRequest) GetMac() *MAC {
 		return x.Mac
 	}
 	return nil
+}
+
+func (x *GetStateRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
 }
 
 type GetStateResponse struct {
@@ -892,6 +972,7 @@ func (x *GetStateResponse) GetChunk() []byte {
 type DeleteStateRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Mac           *MAC                   `protobuf:"bytes,1,opt,name=mac,proto3" json:"mac,omitempty"`
+	Cookie        string                 `protobuf:"bytes,2,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -933,6 +1014,13 @@ func (x *DeleteStateRequest) GetMac() *MAC {
 	return nil
 }
 
+func (x *DeleteStateRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
+}
+
 type DeleteStateResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -971,6 +1059,7 @@ func (*DeleteStateResponse) Descriptor() ([]byte, []int) {
 
 type GetPackfilesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cookie        string                 `protobuf:"bytes,1,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1003,6 +1092,13 @@ func (x *GetPackfilesRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use GetPackfilesRequest.ProtoReflect.Descriptor instead.
 func (*GetPackfilesRequest) Descriptor() ([]byte, []int) {
 	return file_storage_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *GetPackfilesRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
 }
 
 type GetPackfilesResponse struct {
@@ -1053,6 +1149,7 @@ type PutPackfileRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Mac           *MAC                   `protobuf:"bytes,1,opt,name=mac,proto3" json:"mac,omitempty"`
 	Chunk         []byte                 `protobuf:"bytes,2,opt,name=chunk,proto3" json:"chunk,omitempty"`
+	Cookie        string                 `protobuf:"bytes,3,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1099,6 +1196,13 @@ func (x *PutPackfileRequest) GetChunk() []byte {
 		return x.Chunk
 	}
 	return nil
+}
+
+func (x *PutPackfileRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
 }
 
 type PutPackfileResponse struct {
@@ -1148,6 +1252,7 @@ func (x *PutPackfileResponse) GetBytesWritten() int64 {
 type GetPackfileRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Mac           *MAC                   `protobuf:"bytes,1,opt,name=mac,proto3" json:"mac,omitempty"`
+	Cookie        string                 `protobuf:"bytes,2,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1187,6 +1292,13 @@ func (x *GetPackfileRequest) GetMac() *MAC {
 		return x.Mac
 	}
 	return nil
+}
+
+func (x *GetPackfileRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
 }
 
 type GetPackfileResponse struct {
@@ -1238,6 +1350,7 @@ type GetPackfileBlobRequest struct {
 	Mac           *MAC                   `protobuf:"bytes,1,opt,name=mac,proto3" json:"mac,omitempty"`
 	Offset        uint64                 `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
 	Length        uint32                 `protobuf:"varint,3,opt,name=length,proto3" json:"length,omitempty"`
+	Cookie        string                 `protobuf:"bytes,4,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1293,6 +1406,13 @@ func (x *GetPackfileBlobRequest) GetLength() uint32 {
 	return 0
 }
 
+func (x *GetPackfileBlobRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
+}
+
 type GetPackfileBlobResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Chunk         []byte                 `protobuf:"bytes,1,opt,name=chunk,proto3" json:"chunk,omitempty"`
@@ -1340,6 +1460,7 @@ func (x *GetPackfileBlobResponse) GetChunk() []byte {
 type DeletePackfileRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Mac           *MAC                   `protobuf:"bytes,1,opt,name=mac,proto3" json:"mac,omitempty"`
+	Cookie        string                 `protobuf:"bytes,2,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1381,6 +1502,13 @@ func (x *DeletePackfileRequest) GetMac() *MAC {
 	return nil
 }
 
+func (x *DeletePackfileRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
+}
+
 type DeletePackfileResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -1419,6 +1547,7 @@ func (*DeletePackfileResponse) Descriptor() ([]byte, []int) {
 
 type GetLocksRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cookie        string                 `protobuf:"bytes,1,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1451,6 +1580,13 @@ func (x *GetLocksRequest) ProtoReflect() protoreflect.Message {
 // Deprecated: Use GetLocksRequest.ProtoReflect.Descriptor instead.
 func (*GetLocksRequest) Descriptor() ([]byte, []int) {
 	return file_storage_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *GetLocksRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
 }
 
 type GetLocksResponse struct {
@@ -1501,6 +1637,7 @@ type PutLockRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Mac           *MAC                   `protobuf:"bytes,1,opt,name=mac,proto3" json:"mac,omitempty"`
 	Chunk         []byte                 `protobuf:"bytes,2,opt,name=chunk,proto3" json:"chunk,omitempty"`
+	Cookie        string                 `protobuf:"bytes,3,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1547,6 +1684,13 @@ func (x *PutLockRequest) GetChunk() []byte {
 		return x.Chunk
 	}
 	return nil
+}
+
+func (x *PutLockRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
 }
 
 type PutLockResponse struct {
@@ -1596,6 +1740,7 @@ func (x *PutLockResponse) GetBytesWritten() int64 {
 type GetLockRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Mac           *MAC                   `protobuf:"bytes,1,opt,name=mac,proto3" json:"mac,omitempty"`
+	Cookie        string                 `protobuf:"bytes,2,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1635,6 +1780,13 @@ func (x *GetLockRequest) GetMac() *MAC {
 		return x.Mac
 	}
 	return nil
+}
+
+func (x *GetLockRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
 }
 
 type GetLockResponse struct {
@@ -1684,6 +1836,7 @@ func (x *GetLockResponse) GetChunk() []byte {
 type DeleteLockRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Mac           *MAC                   `protobuf:"bytes,1,opt,name=mac,proto3" json:"mac,omitempty"`
+	Cookie        string                 `protobuf:"bytes,2,opt,name=cookie,proto3" json:"cookie,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1723,6 +1876,13 @@ func (x *DeleteLockRequest) GetMac() *MAC {
 		return x.Mac
 	}
 	return nil
+}
+
+func (x *DeleteLockRequest) GetCookie() string {
+	if x != nil {
+		return x.Cookie
+	}
+	return ""
 }
 
 type DeleteLockResponse struct {
@@ -1773,88 +1933,108 @@ const file_storage_proto_rawDesc = "" +
 	"\x06config\x18\x02 \x03(\v2\x1e.store.InitRequest.ConfigEntryR\x06config\x1a9\n" +
 	"\vConfigEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x0e\n" +
-	"\fInitResponse\"'\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"&\n" +
+	"\fInitResponse\x12\x16\n" +
+	"\x06cookie\x18\x01 \x01(\tR\x06cookie\"?\n" +
 	"\rCreateRequest\x12\x16\n" +
-	"\x06config\x18\x01 \x01(\fR\x06config\"\x10\n" +
-	"\x0eCreateResponse\"\r\n" +
-	"\vOpenRequest\"&\n" +
+	"\x06config\x18\x01 \x01(\fR\x06config\x12\x16\n" +
+	"\x06cookie\x18\x02 \x01(\tR\x06cookie\"\x10\n" +
+	"\x0eCreateResponse\"%\n" +
+	"\vOpenRequest\x12\x16\n" +
+	"\x06cookie\x18\x01 \x01(\tR\x06cookie\"&\n" +
 	"\fOpenResponse\x12\x16\n" +
-	"\x06config\x18\x01 \x01(\fR\x06config\"\x0e\n" +
-	"\fCloseRequest\"\x0f\n" +
-	"\rCloseResponse\"\x14\n" +
-	"\x12GetLocationRequest\"1\n" +
+	"\x06config\x18\x01 \x01(\fR\x06config\"&\n" +
+	"\fCloseRequest\x12\x16\n" +
+	"\x06cookie\x18\x01 \x01(\tR\x06cookie\"\x0f\n" +
+	"\rCloseResponse\",\n" +
+	"\x12GetLocationRequest\x12\x16\n" +
+	"\x06cookie\x18\x01 \x01(\tR\x06cookie\"1\n" +
 	"\x13GetLocationResponse\x12\x1a\n" +
-	"\blocation\x18\x01 \x01(\tR\blocation\"\x10\n" +
-	"\x0eGetModeRequest\"%\n" +
+	"\blocation\x18\x01 \x01(\tR\blocation\"(\n" +
+	"\x0eGetModeRequest\x12\x16\n" +
+	"\x06cookie\x18\x01 \x01(\tR\x06cookie\"%\n" +
 	"\x0fGetModeResponse\x12\x12\n" +
-	"\x04mode\x18\x01 \x01(\x05R\x04mode\"\x10\n" +
-	"\x0eGetSizeRequest\"%\n" +
+	"\x04mode\x18\x01 \x01(\x05R\x04mode\"(\n" +
+	"\x0eGetSizeRequest\x12\x16\n" +
+	"\x06cookie\x18\x01 \x01(\tR\x06cookie\"%\n" +
 	"\x0fGetSizeResponse\x12\x12\n" +
-	"\x04size\x18\x01 \x01(\x03R\x04size\"\x12\n" +
-	"\x10GetStatesRequest\"3\n" +
+	"\x04size\x18\x01 \x01(\x03R\x04size\"*\n" +
+	"\x10GetStatesRequest\x12\x16\n" +
+	"\x06cookie\x18\x01 \x01(\tR\x06cookie\"3\n" +
 	"\x11GetStatesResponse\x12\x1e\n" +
 	"\x04macs\x18\x01 \x03(\v2\n" +
-	".store.MACR\x04macs\"E\n" +
+	".store.MACR\x04macs\"]\n" +
 	"\x0fPutStateRequest\x12\x1c\n" +
 	"\x03mac\x18\x01 \x01(\v2\n" +
 	".store.MACR\x03mac\x12\x14\n" +
-	"\x05chunk\x18\x02 \x01(\fR\x05chunk\"7\n" +
+	"\x05chunk\x18\x02 \x01(\fR\x05chunk\x12\x16\n" +
+	"\x06cookie\x18\x03 \x01(\tR\x06cookie\"7\n" +
 	"\x10PutStateResponse\x12#\n" +
-	"\rbytes_written\x18\x01 \x01(\x03R\fbytesWritten\"/\n" +
+	"\rbytes_written\x18\x01 \x01(\x03R\fbytesWritten\"G\n" +
 	"\x0fGetStateRequest\x12\x1c\n" +
 	"\x03mac\x18\x01 \x01(\v2\n" +
-	".store.MACR\x03mac\"(\n" +
+	".store.MACR\x03mac\x12\x16\n" +
+	"\x06cookie\x18\x02 \x01(\tR\x06cookie\"(\n" +
 	"\x10GetStateResponse\x12\x14\n" +
-	"\x05chunk\x18\x01 \x01(\fR\x05chunk\"2\n" +
+	"\x05chunk\x18\x01 \x01(\fR\x05chunk\"J\n" +
 	"\x12DeleteStateRequest\x12\x1c\n" +
 	"\x03mac\x18\x01 \x01(\v2\n" +
-	".store.MACR\x03mac\"\x15\n" +
-	"\x13DeleteStateResponse\"\x15\n" +
-	"\x13GetPackfilesRequest\"6\n" +
+	".store.MACR\x03mac\x12\x16\n" +
+	"\x06cookie\x18\x02 \x01(\tR\x06cookie\"\x15\n" +
+	"\x13DeleteStateResponse\"-\n" +
+	"\x13GetPackfilesRequest\x12\x16\n" +
+	"\x06cookie\x18\x01 \x01(\tR\x06cookie\"6\n" +
 	"\x14GetPackfilesResponse\x12\x1e\n" +
 	"\x04macs\x18\x01 \x03(\v2\n" +
-	".store.MACR\x04macs\"H\n" +
+	".store.MACR\x04macs\"`\n" +
 	"\x12PutPackfileRequest\x12\x1c\n" +
 	"\x03mac\x18\x01 \x01(\v2\n" +
 	".store.MACR\x03mac\x12\x14\n" +
-	"\x05chunk\x18\x02 \x01(\fR\x05chunk\":\n" +
+	"\x05chunk\x18\x02 \x01(\fR\x05chunk\x12\x16\n" +
+	"\x06cookie\x18\x03 \x01(\tR\x06cookie\":\n" +
 	"\x13PutPackfileResponse\x12#\n" +
-	"\rbytes_written\x18\x01 \x01(\x03R\fbytesWritten\"2\n" +
+	"\rbytes_written\x18\x01 \x01(\x03R\fbytesWritten\"J\n" +
 	"\x12GetPackfileRequest\x12\x1c\n" +
 	"\x03mac\x18\x01 \x01(\v2\n" +
-	".store.MACR\x03mac\"+\n" +
+	".store.MACR\x03mac\x12\x16\n" +
+	"\x06cookie\x18\x02 \x01(\tR\x06cookie\"+\n" +
 	"\x13GetPackfileResponse\x12\x14\n" +
-	"\x05chunk\x18\x01 \x01(\fR\x05chunk\"f\n" +
+	"\x05chunk\x18\x01 \x01(\fR\x05chunk\"~\n" +
 	"\x16GetPackfileBlobRequest\x12\x1c\n" +
 	"\x03mac\x18\x01 \x01(\v2\n" +
 	".store.MACR\x03mac\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x04R\x06offset\x12\x16\n" +
-	"\x06length\x18\x03 \x01(\rR\x06length\"/\n" +
+	"\x06length\x18\x03 \x01(\rR\x06length\x12\x16\n" +
+	"\x06cookie\x18\x04 \x01(\tR\x06cookie\"/\n" +
 	"\x17GetPackfileBlobResponse\x12\x14\n" +
-	"\x05chunk\x18\x01 \x01(\fR\x05chunk\"5\n" +
+	"\x05chunk\x18\x01 \x01(\fR\x05chunk\"M\n" +
 	"\x15DeletePackfileRequest\x12\x1c\n" +
 	"\x03mac\x18\x01 \x01(\v2\n" +
-	".store.MACR\x03mac\"\x18\n" +
-	"\x16DeletePackfileResponse\"\x11\n" +
-	"\x0fGetLocksRequest\"2\n" +
+	".store.MACR\x03mac\x12\x16\n" +
+	"\x06cookie\x18\x02 \x01(\tR\x06cookie\"\x18\n" +
+	"\x16DeletePackfileResponse\")\n" +
+	"\x0fGetLocksRequest\x12\x16\n" +
+	"\x06cookie\x18\x01 \x01(\tR\x06cookie\"2\n" +
 	"\x10GetLocksResponse\x12\x1e\n" +
 	"\x04macs\x18\x01 \x03(\v2\n" +
-	".store.MACR\x04macs\"D\n" +
+	".store.MACR\x04macs\"\\\n" +
 	"\x0ePutLockRequest\x12\x1c\n" +
 	"\x03mac\x18\x01 \x01(\v2\n" +
 	".store.MACR\x03mac\x12\x14\n" +
-	"\x05chunk\x18\x02 \x01(\fR\x05chunk\"6\n" +
+	"\x05chunk\x18\x02 \x01(\fR\x05chunk\x12\x16\n" +
+	"\x06cookie\x18\x03 \x01(\tR\x06cookie\"6\n" +
 	"\x0fPutLockResponse\x12#\n" +
-	"\rbytes_written\x18\x01 \x01(\x03R\fbytesWritten\".\n" +
+	"\rbytes_written\x18\x01 \x01(\x03R\fbytesWritten\"F\n" +
 	"\x0eGetLockRequest\x12\x1c\n" +
 	"\x03mac\x18\x01 \x01(\v2\n" +
-	".store.MACR\x03mac\"'\n" +
+	".store.MACR\x03mac\x12\x16\n" +
+	"\x06cookie\x18\x02 \x01(\tR\x06cookie\"'\n" +
 	"\x0fGetLockResponse\x12\x14\n" +
-	"\x05chunk\x18\x01 \x01(\fR\x05chunk\"1\n" +
+	"\x05chunk\x18\x01 \x01(\fR\x05chunk\"I\n" +
 	"\x11DeleteLockRequest\x12\x1c\n" +
 	"\x03mac\x18\x01 \x01(\v2\n" +
-	".store.MACR\x03mac\"\x14\n" +
+	".store.MACR\x03mac\x12\x16\n" +
+	"\x06cookie\x18\x02 \x01(\tR\x06cookie\"\x14\n" +
 	"\x12DeleteLockResponse2\x86\n" +
 	"\n" +
 	"\x05Store\x12/\n" +
