@@ -241,7 +241,9 @@ func (s *GrpcStorage) PutState(ctx context.Context, mac objects.MAC, rd io.Reade
 		})
 	})
 	if err != nil {
-		_, _ = stream.CloseAndRecv()
+		if err == io.EOF {
+			_, err = stream.CloseAndRecv()
+		}
 		return n, unwrap(err)
 	}
 	resp, err := stream.CloseAndRecv()
@@ -319,7 +321,9 @@ func (s *GrpcStorage) PutPackfile(ctx context.Context, mac objects.MAC, rd io.Re
 		})
 	})
 	if err != nil {
-		_, _ = stream.CloseAndRecv()
+		if err == io.EOF {
+			_, err = stream.CloseAndRecv()
+		}
 		return n, unwrap(err)
 	}
 	resp, err := stream.CloseAndRecv()
@@ -417,7 +421,9 @@ func (s *GrpcStorage) PutLock(ctx context.Context, lockID objects.MAC, rd io.Rea
 		})
 	})
 	if err != nil {
-		_, _ = stream.CloseAndRecv()
+		if err == io.EOF {
+			_, err = stream.CloseAndRecv()
+		}
 		return n, unwrap(err)
 	}
 	resp, err := stream.CloseAndRecv()

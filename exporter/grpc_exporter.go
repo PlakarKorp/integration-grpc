@@ -131,7 +131,9 @@ func (g *GrpcExporter) StoreFile(ctx context.Context, pathname string, fp io.Rea
 			},
 		},
 	}); err != nil {
-		_, _ = stream.CloseAndRecv()
+		if err == io.EOF {
+			_, err = stream.CloseAndRecv()
+		}
 		return unwrap(err)
 	}
 
@@ -154,7 +156,9 @@ func (g *GrpcExporter) StoreFile(ctx context.Context, pathname string, fp io.Rea
 				},
 			},
 		}); err != nil {
-			_, _ = stream.CloseAndRecv()
+			if err == io.EOF {
+				_, err = stream.CloseAndRecv()
+			}
 			return unwrap(err)
 		}
 	}
