@@ -142,6 +142,7 @@ func (g *GrpcExporter) StoreFile(ctx context.Context, pathname string, fp io.Rea
 			break
 		}
 		if err != nil {
+			_, _ = stream.CloseAndRecv()
 			return err
 		}
 
