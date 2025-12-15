@@ -3,6 +3,7 @@ package importer
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -191,10 +192,10 @@ func (g *GrpcImporter) Scan(ctx context.Context) (<-chan *importer.ScanResult, e
 		for {
 			response, err := stream.Recv()
 			if err != nil {
-				if err == io.EOF {
-					break
+				if !errors.Is(err, io.EOF) {
+					results <- importer.NewScanError("", fmt.Errorf("failed to receive scan response: %w", unwrap(err)))
 				}
-				results <- importer.NewScanError("", fmt.Errorf("failed to receive scan response: %w", unwrap(err)))
+				break
 			}
 			isXattr := false
 			if response.GetRecord().GetXattr() != nil {
