@@ -8,8 +8,10 @@ import (
 	"io"
 	"io/fs"
 
+	"github.com/PlakarKorp/kloset/connectors"
+	"github.com/PlakarKorp/kloset/connectors/importer"
+	"github.com/PlakarKorp/kloset/location"
 	"github.com/PlakarKorp/kloset/objects"
-	"github.com/PlakarKorp/kloset/snapshot/importer"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -20,7 +22,11 @@ import (
 type GrpcImporter struct {
 	GrpcClientScan   grpc_importer_pkg.ImporterClient
 	GrpcClientReader grpc_importer_pkg.ImporterClient
-	cookie           string
+
+	cookie string
+	typ    string
+	origin string
+	root   string
 }
 
 func unwrap(err error) error {
@@ -41,7 +47,7 @@ func unwrap(err error) error {
 	}
 }
 
-func NewImporter(ctx context.Context, client grpc.ClientConnInterface, opts *importer.Options, proto string, config map[string]string) (importer.Importer, error) {
+func NewImporter(ctx context.Context, client grpc.ClientConnInterface, opts *connectors.Options, proto string, config map[string]string) (importer.Importer, error) {
 	importer := &GrpcImporter{
 		GrpcClientScan:   grpc_importer_pkg.NewImporterClient(client),
 		GrpcClientReader: grpc_importer_pkg.NewImporterClient(client),
@@ -54,7 +60,7 @@ func NewImporter(ctx context.Context, client grpc.ClientConnInterface, opts *imp
 			Arch:           opts.Architecture,
 			Cwd:            opts.CWD,
 			Maxconcurrency: int64(opts.MaxConcurrency),
-			Excludes:	opts.Excludes,
+			Excludes:       opts.Excludes,
 		},
 		Proto:  proto,
 		Config: config,
@@ -69,38 +75,29 @@ func NewImporter(ctx context.Context, client grpc.ClientConnInterface, opts *imp
 		return nil, fmt.Errorf("%s", *res.Error)
 	}
 
+	info, err := importer.GrpcClientScan.Info(ctx, &grpc_importer_pkg.InfoRequest{
+		Cookie: res.Cookie,
+	})
+	if err != nil {
+		importer.Close(ctx)
+		return nil, err
+	}
+
 	importer.cookie = res.Cookie
+	importer.typ = info.GetType()
+	importer.origin = info.GetOrigin()
+	importer.root = info.GetRoot()
+
 	return importer, nil
 }
 
-func (g *GrpcImporter) Origin(ctx context.Context) (string, error) {
-	info, err := g.GrpcClientScan.Info(ctx, &grpc_importer_pkg.InfoRequest{
-		Cookie: g.cookie,
-	})
-	if err != nil {
-		return "", unwrap(err)
-	}
-	return info.GetOrigin(), nil
-}
+func (g *GrpcImporter) Origin() string        { return g.origin }
+func (g *GrpcImporter) Type() string          { return g.typ }
+func (g *GrpcImporter) Root() string          { return g.root }
+func (g *GrpcImporter) Flags() location.Flags { return 0 }
 
-func (g *GrpcImporter) Type(ctx context.Context) (string, error) {
-	info, err := g.GrpcClientScan.Info(ctx, &grpc_importer_pkg.InfoRequest{
-		Cookie: g.cookie,
-	})
-	if err != nil {
-		return "", unwrap(err)
-	}
-	return info.GetType(), nil
-}
-
-func (g *GrpcImporter) Root(ctx context.Context) (string, error) {
-	info, err := g.GrpcClientScan.Info(context.Background(), &grpc_importer_pkg.InfoRequest{
-		Cookie: g.cookie,
-	})
-	if err != nil {
-		return "", unwrap(err)
-	}
-	return info.GetRoot(), nil
+func (g *GrpcImporter) Ping(ctx context.Context) error {
+	return errors.ErrUnsupported
 }
 
 func (g *GrpcImporter) Close(ctx context.Context) error {
@@ -178,65 +175,103 @@ func (g *GrpcReader) Close() error {
 	return nil
 }
 
-func (g *GrpcImporter) Scan(ctx context.Context) (<-chan *importer.ScanResult, error) {
+func (g *GrpcImporter) scan(ctx context.Context, records chan<- *connectors.Record, stream grpc.ServerStreamingClient[grpc_importer_pkg.ScanResponse]) error {
+	for {
+		response, err := stream.Recv()
+		if err != nil {
+			if !errors.Is(err, io.EOF) {
+				return err
+			}
+			break
+		}
+		isXattr := false
+		if response.GetRecord().GetXattr() != nil {
+			isXattr = true
+		}
+
+		if response.GetRecord() != nil {
+			records <- &connectors.Record{
+				Pathname: response.GetPathname(),
+				Reader: connectors.NewLazyReader(func() (io.ReadCloser, error) {
+					return NewGrpcReader(ctx, g.GrpcClientReader, response.GetPathname(), g.cookie), nil
+				}),
+				FileInfo: objects.FileInfo{
+					Lname:      response.GetRecord().GetFileinfo().GetName(),
+					Lsize:      response.GetRecord().GetFileinfo().GetSize(),
+					Lmode:      fs.FileMode(response.GetRecord().GetFileinfo().GetMode()),
+					LmodTime:   response.GetRecord().GetFileinfo().GetModTime().AsTime(),
+					Ldev:       response.GetRecord().GetFileinfo().GetDev(),
+					Lino:       response.GetRecord().GetFileinfo().GetIno(),
+					Luid:       response.GetRecord().GetFileinfo().GetUid(),
+					Lgid:       response.GetRecord().GetFileinfo().GetGid(),
+					Lnlink:     uint16(response.GetRecord().GetFileinfo().GetNlink()),
+					Lusername:  response.GetRecord().GetFileinfo().GetUsername(),
+					Lgroupname: response.GetRecord().GetFileinfo().GetGroupname(),
+				},
+				Target:         response.GetRecord().Target,
+				FileAttributes: response.GetRecord().GetFileAttributes(),
+				IsXattr:        isXattr,
+				XattrName:      response.GetRecord().GetXattr().GetName(),
+				XattrType:      objects.Attribute(response.GetRecord().GetXattr().GetType()),
+			}
+		} else if response.GetError() != nil {
+			records <- connectors.NewError(response.GetPathname(), fmt.Errorf("scan error: %s", response.GetError().GetMessage()))
+		} else {
+			return fmt.Errorf("unexpected response: %v", response)
+		}
+	}
+
+	return nil
+}
+
+func (g *GrpcImporter) Import(ctx context.Context, records chan<- *connectors.Record, results <-chan *connectors.Result) error {
+	defer close(records)
+
 	stream, err := g.GrpcClientScan.Scan(ctx, &grpc_importer_pkg.ScanRequest{
 		Cookie: g.cookie,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to start scan: %w", unwrap(err))
+		return fmt.Errorf("failed to start scan: %w", unwrap(err))
 	}
 
-	results := make(chan *importer.ScanResult, 1000)
-	go func() {
-		defer close(results)
-
-		for {
-			response, err := stream.Recv()
-			if err != nil {
-				if !errors.Is(err, io.EOF) {
-					results <- importer.NewScanError("", fmt.Errorf("failed to receive scan response: %w", unwrap(err)))
-				}
-				break
+	for {
+		response, err := stream.Recv()
+		if err != nil {
+			if !errors.Is(err, io.EOF) {
+				return err
 			}
-			isXattr := false
-			if response.GetRecord().GetXattr() != nil {
-				isXattr = true
-			}
-
-			if response.GetRecord() != nil {
-				results <- &importer.ScanResult{
-					Record: &importer.ScanRecord{
-						Pathname: response.GetPathname(),
-						Reader: importer.NewLazyReader(func() (io.ReadCloser, error) {
-							return NewGrpcReader(ctx, g.GrpcClientReader, response.GetPathname(), g.cookie), nil
-						}),
-						FileInfo: objects.FileInfo{
-							Lname:      response.GetRecord().GetFileinfo().GetName(),
-							Lsize:      response.GetRecord().GetFileinfo().GetSize(),
-							Lmode:      fs.FileMode(response.GetRecord().GetFileinfo().GetMode()),
-							LmodTime:   response.GetRecord().GetFileinfo().GetModTime().AsTime(),
-							Ldev:       response.GetRecord().GetFileinfo().GetDev(),
-							Lino:       response.GetRecord().GetFileinfo().GetIno(),
-							Luid:       response.GetRecord().GetFileinfo().GetUid(),
-							Lgid:       response.GetRecord().GetFileinfo().GetGid(),
-							Lnlink:     uint16(response.GetRecord().GetFileinfo().GetNlink()),
-							Lusername:  response.GetRecord().GetFileinfo().GetUsername(),
-							Lgroupname: response.GetRecord().GetFileinfo().GetGroupname(),
-						},
-						Target:         response.GetRecord().Target,
-						FileAttributes: response.GetRecord().GetFileAttributes(),
-						IsXattr:        isXattr,
-						XattrName:      response.GetRecord().GetXattr().GetName(),
-						XattrType:      objects.Attribute(response.GetRecord().GetXattr().GetType()),
-					},
-					Error: nil,
-				}
-			} else if response.GetError() != nil {
-				results <- importer.NewScanError(response.GetPathname(), fmt.Errorf("scan error: %s", response.GetError().GetMessage()))
-			} else {
-				results <- importer.NewScanError("", fmt.Errorf("unexpected response: %v", response))
-			}
+			return nil
 		}
-	}()
-	return results, nil
+
+		if response.GetRecord() != nil {
+			records <- &connectors.Record{
+				Pathname: response.GetPathname(),
+				Reader: connectors.NewLazyReader(func() (io.ReadCloser, error) {
+					return NewGrpcReader(ctx, g.GrpcClientReader, response.GetPathname(), g.cookie), nil
+				}),
+				FileInfo: objects.FileInfo{
+					Lname:      response.GetRecord().GetFileinfo().GetName(),
+					Lsize:      response.GetRecord().GetFileinfo().GetSize(),
+					Lmode:      fs.FileMode(response.GetRecord().GetFileinfo().GetMode()),
+					LmodTime:   response.GetRecord().GetFileinfo().GetModTime().AsTime(),
+					Ldev:       response.GetRecord().GetFileinfo().GetDev(),
+					Lino:       response.GetRecord().GetFileinfo().GetIno(),
+					Luid:       response.GetRecord().GetFileinfo().GetUid(),
+					Lgid:       response.GetRecord().GetFileinfo().GetGid(),
+					Lnlink:     uint16(response.GetRecord().GetFileinfo().GetNlink()),
+					Lusername:  response.GetRecord().GetFileinfo().GetUsername(),
+					Lgroupname: response.GetRecord().GetFileinfo().GetGroupname(),
+				},
+				Target:         response.GetRecord().Target,
+				FileAttributes: response.GetRecord().GetFileAttributes(),
+				IsXattr:        response.GetRecord().GetXattr() != nil,
+				XattrName:      response.GetRecord().GetXattr().GetName(),
+				XattrType:      objects.Attribute(response.GetRecord().GetXattr().GetType()),
+			}
+		} else if response.GetError() != nil {
+			records <- connectors.NewError(response.GetPathname(), fmt.Errorf("scan error: %s", response.GetError().GetMessage()))
+		} else {
+			return fmt.Errorf("unexpected response: %v", response)
+		}
+	}
 }
