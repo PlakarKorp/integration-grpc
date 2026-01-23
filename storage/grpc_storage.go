@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 
 	"github.com/PlakarKorp/kloset/connectors/storage"
 	"github.com/PlakarKorp/kloset/location"
@@ -81,7 +82,13 @@ func NewStorage(ctx context.Context, client grpc.ClientConnInterface, proto stri
 		s.GrpcClient.Close(ctx, &grpc_storage.CloseRequest{Cookie: s.cookie})
 		return nil, unwrap(err)
 	} else {
-		s.origin = resp.Location
+		u, err := url.Parse(resp.Location)
+		if err != nil {
+			return nil, err
+		}
+		s.origin = u.Host
+		s.root = u.Path
+		s.typ = u.Scheme
 	}
 
 	if resp, err := s.GrpcClient.GetMode(ctx, &grpc_storage.GetModeRequest{
@@ -128,13 +135,11 @@ func (s *GrpcStorage) Mode() storage.Mode {
 }
 
 func (s *GrpcStorage) Root() string {
-	// Old protocol didn't have this, no way to get it?
-	return ""
+	return s.root
 }
 
 func (s *GrpcStorage) Type() string {
-	// Old protocol didn't have this, no way to get it?
-	return "grpc"
+	return s.typ
 }
 
 func (s *GrpcStorage) Flags() location.Flags {
