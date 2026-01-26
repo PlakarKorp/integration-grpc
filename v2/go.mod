@@ -1,9 +1,10 @@
-module github.com/PlakarKorp/integration-grpc
+module github.com/PlakarKorp/integration-grpc/v2
 
-go 1.24.0
+go 1.25.5
 
 require (
 	github.com/PlakarKorp/kloset v1.0.13-0.20260119194534-5fe54c33b83f
+	golang.org/x/sync v0.19.0
 	google.golang.org/genproto v0.0.0-20260114163908-3f89685c29c3
 	google.golang.org/grpc v1.78.0
 	google.golang.org/protobuf v1.36.11
@@ -13,7 +14,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
+	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/mattn/go-sqlite3 v1.14.33 // indirect
 	github.com/nickball/go-aes-key-wrap v0.0.0-20170929221519-1c3aa3e4dfc5 // indirect
 	github.com/pierrec/lz4/v4 v4.1.25 // indirect
