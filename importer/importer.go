@@ -200,7 +200,9 @@ func (g *Importer) receiveRecords(ctx context.Context, stream grpc.BidiStreaming
 			return g.open(ctx, record)
 		})
 
-		records <- record
+		if err := g.emitRecord(ctx, records, record); err != nil {
+			return err
+		}
 	}
 }
 
@@ -234,4 +236,14 @@ func (g *Importer) Import(ctx context.Context, records chan<- *connectors.Record
 	})
 
 	return wg.Wait()
+}
+
+func (imp *Importer) emitRecord(ctx context.Context, records chan<- *connectors.Record, record *connectors.Record) error {
+	select {
+	case <-ctx.Done():
+		_ = record.Close()
+		return ctx.Err()
+	case records <- record:
+	}
+	return nil
 }
