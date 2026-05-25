@@ -152,6 +152,7 @@ func SendChunks(rd io.ReadCloser, chunkSendFn func(chunk []byte) error) (int64, 
 
 type grpcChunkReader struct {
 	streamRecv func() ([]byte, error)
+	cancel     func()
 	buf        bytes.Buffer
 }
 
@@ -192,16 +193,24 @@ func (g *grpcChunkReader) Read(p []byte) (int, error) {
 
 // Closing of the actual reader is left to the caller, close is not to be
 // forwarded over grpc.
-// We still drain this in order to avoid a misuse of the API (where someone
-// would request less than what the server is sending), which leads to leaks.
+// If a cancel func was attached, we use it to abort the RPC server-side
+// so the server stops sending more chunks instead of draining them
+// synchronously here.  We still drain on the way out to avoid leaking the
+// stream goroutine, but cancellation makes that drain finish in O(1) frames.
 func (g *grpcChunkReader) Close() error {
+	if g.cancel != nil {
+		g.cancel()
+	}
+
 	for {
 		_, err := g.streamRecv()
-		if errors.Is(err, io.EOF) {
-			return nil
-		} else if err != nil {
-			return err
+		if err == nil {
+			continue
 		}
+		if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
+			return nil
+		}
+		return err
 	}
 }
 
@@ -271,22 +280,30 @@ func (s *Store) Get(ctx context.Context, res storage.StorageResource, mac object
 		}
 	}
 
-	stream, err := s.client.Get(ctx, &GetRequest{
+	// Derive a context we can cancel from Close() so that a caller who
+	// stops reading mid-stream doesn't pay the cost of draining the rest
+	// of the response server-side.
+	rpcCtx, cancel := context.WithCancel(ctx)
+	stream, err := s.client.Get(rpcCtx, &GetRequest{
 		Mac:   mac[:],
 		Type:  StorageResource(res),
 		Range: grg,
 	})
 	if err != nil {
+		cancel()
 		return nil, fmt.Errorf("get %s: %w", res, unwrap(err))
 	}
 
-	return ReceiveChunks(func() ([]byte, error) {
-		resp, err := stream.Recv()
-		if err != nil {
-			return nil, unwrap(err)
-		}
-		return resp.Chunk, nil
-	}), nil
+	return &grpcChunkReader{
+		cancel: cancel,
+		streamRecv: func() ([]byte, error) {
+			resp, err := stream.Recv()
+			if err != nil {
+				return nil, unwrap(err)
+			}
+			return resp.Chunk, nil
+		},
+	}, nil
 }
 
 func (s *Store) Delete(ctx context.Context, res storage.StorageResource, mac objects.MAC) error {
