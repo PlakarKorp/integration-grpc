@@ -130,10 +130,18 @@ func (g *Importer) open(parentctx context.Context, record *connectors.Record) (i
 }
 
 func (s *streamReader) Read(p []byte) (n int, err error) {
+	// A zero-length read must not consume a frame; just confirm we're
+	// not at EOF.  io.Reader's contract allows returning (0, nil) here.
+	if len(p) == 0 {
+		return 0, nil
+	}
+
 	if s.buf.Len() != 0 {
-		n, err = s.buf.Read(p)
-		if n > 0 || err != nil {
-			return n, err
+		// bytes.Buffer.Read returns (0, io.EOF) only when empty, which
+		// we ruled out above.  Any read that yields data is enough.
+		n, _ = s.buf.Read(p)
+		if n > 0 {
+			return n, nil
 		}
 	}
 
@@ -144,11 +152,11 @@ func (s *streamReader) Read(p []byte) (n int, err error) {
 		}
 		return 0, fmt.Errorf("failed to receive file data: %w", unwrap(err))
 	}
-	if fileResponse.GetChunk() != nil {
-		s.buf.Write(fileResponse.GetChunk())
-		n, err = s.buf.Read(p)
-		if n > 0 || err != nil {
-			return n, err
+	if chunk := fileResponse.GetChunk(); len(chunk) > 0 {
+		s.buf.Write(chunk)
+		n, _ = s.buf.Read(p)
+		if n > 0 {
+			return n, nil
 		}
 	}
 	return 0, fmt.Errorf("unexpected response: %v", fileResponse)
@@ -156,18 +164,28 @@ func (s *streamReader) Read(p []byte) (n int, err error) {
 
 // Closing of the actual reader is left to the caller, close is not to be
 // forwarded over grpc.
-// We still drain this in order to avoid a misuse of the API (where someone
-// would request less than what the server is sending), which leads to leaks.
+// We cancel the per-stream context so the server stops sending, then
+// drain so we don't leak the underlying stream goroutine.  Cancellation
+// turns the drain into an O(1) operation: the next Recv returns
+// context.Canceled (which we treat as a clean shutdown) instead of us
+// having to receive the whole remaining payload.
 func (s *streamReader) Close() error {
 	s.cancel()
 
 	for {
 		_, err := s.stream.Recv()
-		if errors.Is(err, io.EOF) {
-			return nil
-		} else if err != nil {
-			return err
+		if err == nil {
+			continue
 		}
+		if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) {
+			return nil
+		}
+		// gRPC reports a cancelled stream with a Canceled status code
+		// rather than the sentinel; unwrap maps it back.
+		if errors.Is(unwrap(err), context.Canceled) {
+			return nil
+		}
+		return err
 	}
 }
 

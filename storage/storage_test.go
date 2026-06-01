@@ -6,7 +6,9 @@ import (
 	"errors"
 	"io"
 	"net"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/PlakarKorp/kloset/connectors/storage"
 	"github.com/PlakarKorp/kloset/objects"
@@ -29,6 +31,10 @@ type fakeServer struct {
 	getChunks  [][]byte
 	getErr     error
 	mode       int32
+
+	// If non-nil, used by Get() instead of the canned getChunks list.
+	// Lets a test inject blocking / context-aware behaviour.
+	getHandler func(*GetRequest, grpc.ServerStreamingServer[GetResponse]) error
 
 	putBytes int64
 	putErr   error
@@ -89,7 +95,10 @@ func (f *fakeServer) Put(stream grpc.ClientStreamingServer[PutRequest, PutRespon
 	return stream.SendAndClose(&PutResponse{BytesWritten: f.putBytes})
 }
 
-func (f *fakeServer) Get(_ *GetRequest, stream grpc.ServerStreamingServer[GetResponse]) error {
+func (f *fakeServer) Get(req *GetRequest, stream grpc.ServerStreamingServer[GetResponse]) error {
+	if f.getHandler != nil {
+		return f.getHandler(req, stream)
+	}
 	if f.getErr != nil {
 		return f.getErr
 	}
@@ -309,5 +318,71 @@ func TestReceiveChunks_ReassemblesAcrossChunkBoundaries(t *testing.T) {
 }
 
 type errReader struct{ err error }
+
+// Regression for the Get/Close-drain bug: before the fix, Close()
+// would synchronously read every remaining chunk off the wire even
+// when the caller only wanted to abort.  We assert here that Close()
+// returns promptly once the context is cancelled, even though the
+// server is still trying to push chunks.
+func TestStore_GetClose_CancelsRatherThanDrains(t *testing.T) {
+	const flood = 1 << 20 // 1 MiB worth of pending chunks we should NOT pull
+
+	var sentAfterFirst int64
+	srv := &fakeServer{
+		getHandler: func(_ *GetRequest, stream grpc.ServerStreamingServer[GetResponse]) error {
+			// First chunk goes immediately so the client can start reading.
+			if err := stream.Send(&GetResponse{Chunk: []byte("first")}); err != nil {
+				return err
+			}
+			payload := bytes.Repeat([]byte{'x'}, 4096)
+			for {
+				if err := stream.Context().Err(); err != nil {
+					return err
+				}
+				if err := stream.Send(&GetResponse{Chunk: payload}); err != nil {
+					// Once the client cancels, Send returns an error;
+					// stop here.
+					return nil
+				}
+				atomic.AddInt64(&sentAfterFirst, int64(len(payload)))
+				if atomic.LoadInt64(&sentAfterFirst) > flood {
+					// Way more than the client would ever read into a
+					// 5-byte buffer; the test has proven its point.
+					<-stream.Context().Done()
+					return stream.Context().Err()
+				}
+			}
+		},
+	}
+	conn, cleanup := dialTestServer(t, srv)
+	defer cleanup()
+
+	s, _ := NewStorage(context.Background(), conn, "p", nil)
+	rd, err := s.Get(context.Background(), storage.StorageResourcePackfile, objects.MAC{}, nil)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+
+	// Read just the first 5 bytes, then close while the server is
+	// still actively producing.
+	first := make([]byte, 5)
+	if _, err := io.ReadFull(rd, first); err != nil {
+		t.Fatalf("ReadFull: %v", err)
+	}
+	if string(first) != "first" {
+		t.Fatalf("first read mismatch: %q", first)
+	}
+
+	closed := make(chan error, 1)
+	go func() { closed <- rd.Close() }()
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatalf("Close returned error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Close blocked: it must cancel the RPC instead of draining the entire response")
+	}
+}
 
 func (e *errReader) Read([]byte) (int, error) { return 0, e.err }

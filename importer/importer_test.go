@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -36,6 +37,8 @@ type fakeServer struct {
 	// chunks to emit on Open(record)
 	openChunks map[string][][]byte
 	openErr    error
+	// Optional handler hook — when set, overrides openChunks/openErr.
+	openHandler func(*OpenRequest, grpc.ServerStreamingServer[OpenResponse]) error
 
 	// captured Acks from the client
 	acks    []*gconn.Result
@@ -90,6 +93,9 @@ func (f *fakeServer) Import(stream grpc.BidiStreamingServer[ImportRequest, Impor
 }
 
 func (f *fakeServer) Open(req *OpenRequest, stream grpc.ServerStreamingServer[OpenResponse]) error {
+	if f.openHandler != nil {
+		return f.openHandler(req, stream)
+	}
 	if f.openErr != nil {
 		return f.openErr
 	}
@@ -291,5 +297,105 @@ func TestImporter_OpenErrorPropagates(t *testing.T) {
 	defer rd.Close()
 	if _, err := io.ReadAll(rd); err == nil {
 		t.Fatalf("expected read error from server, got nil")
+	}
+}
+
+// Regression: a zero-length Read() must not consume an Open-stream frame.
+// Before the fix, Read([]byte{}) fell through to stream.Recv() and the
+// frame's payload was buffered, then re-read out-of-order on the next call.
+func TestStreamReader_ZeroLengthReadIsNoop(t *testing.T) {
+	var openCalls int
+	srv := &fakeServer{
+		initResp: &InitResponse{},
+		openHandler: func(_ *OpenRequest, stream grpc.ServerStreamingServer[OpenResponse]) error {
+			openCalls++
+			// Emit exactly one frame, then EOF.
+			return stream.Send(&OpenResponse{Chunk: []byte("hello")})
+		},
+	}
+	conn, cleanup := dialTestServer(t, srv)
+	defer cleanup()
+
+	imp, _ := NewImporter(context.Background(), conn, &connectors.Options{}, "p", nil)
+	gi := imp.(*Importer)
+	rd, err := gi.open(context.Background(), &connectors.Record{Pathname: "/x"})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer rd.Close()
+
+	// A zero-length read must return (0, nil) without consuming a frame.
+	n, err := rd.Read(nil)
+	if n != 0 || err != nil {
+		t.Fatalf("Read(nil) returned (%d, %v); want (0, nil)", n, err)
+	}
+	n, err = rd.Read([]byte{})
+	if n != 0 || err != nil {
+		t.Fatalf("Read([]byte{}) returned (%d, %v); want (0, nil)", n, err)
+	}
+
+	// Now a real read must still see the full payload.
+	got, err := io.ReadAll(rd)
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	if string(got) != "hello" {
+		t.Fatalf("payload mismatch: %q", got)
+	}
+}
+
+// Regression: streamReader.Close() must cancel the RPC instead of
+// synchronously draining every remaining chunk from the server.
+func TestStreamReader_CloseCancelsRatherThanDrains(t *testing.T) {
+	var sentAfterFirst int64
+	srv := &fakeServer{
+		initResp: &InitResponse{},
+		openHandler: func(_ *OpenRequest, stream grpc.ServerStreamingServer[OpenResponse]) error {
+			if err := stream.Send(&OpenResponse{Chunk: []byte("first")}); err != nil {
+				return err
+			}
+			payload := make([]byte, 4096)
+			for {
+				if err := stream.Context().Err(); err != nil {
+					return err
+				}
+				if err := stream.Send(&OpenResponse{Chunk: payload}); err != nil {
+					return nil
+				}
+				atomic.AddInt64(&sentAfterFirst, int64(len(payload)))
+				if atomic.LoadInt64(&sentAfterFirst) > 1<<20 {
+					<-stream.Context().Done()
+					return stream.Context().Err()
+				}
+			}
+		},
+	}
+	conn, cleanup := dialTestServer(t, srv)
+	defer cleanup()
+
+	imp, _ := NewImporter(context.Background(), conn, &connectors.Options{}, "p", nil)
+	gi := imp.(*Importer)
+	rd, err := gi.open(context.Background(), &connectors.Record{Pathname: "/x"})
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+
+	first := make([]byte, 5)
+	if _, err := io.ReadFull(rd, first); err != nil {
+		t.Fatalf("ReadFull: %v", err)
+	}
+	if string(first) != "first" {
+		t.Fatalf("first read mismatch: %q", first)
+	}
+
+	closed := make(chan error, 1)
+	go func() { closed <- rd.Close() }()
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatalf("Close returned error: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Close blocked: it must cancel the RPC instead of draining the rest of the stream")
 	}
 }
