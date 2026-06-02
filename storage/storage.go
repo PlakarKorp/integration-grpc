@@ -214,7 +214,8 @@ func ReceiveChunks(chunkReceiverFn func() ([]byte, error)) io.ReadCloser {
 
 func (s *Store) List(ctx context.Context, res storage.StorageResource) ([]objects.MAC, error) {
 	resp, err := s.client.List(ctx, &ListRequest{
-		Type: StorageResource(res),
+		Type:  StorageResource(res),
+		Flags: storage.Flag(ctx),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list %s: %w", res, unwrap(err))
@@ -237,8 +238,9 @@ func (s *Store) Put(ctx context.Context, res storage.StorageResource, mac object
 	}
 
 	err = stream.Send(&PutRequest{
-		Mac:  mac[:],
-		Type: StorageResource(res),
+		Mac:   mac[:],
+		Type:  StorageResource(res),
+		Flags: storage.Flag(ctx),
 	})
 	if err != nil {
 		return 0, fmt.Errorf("failed to send mac: %w", unwrap(err))
@@ -275,6 +277,7 @@ func (s *Store) Get(ctx context.Context, res storage.StorageResource, mac object
 		Mac:   mac[:],
 		Type:  StorageResource(res),
 		Range: grg,
+		Flags: storage.Flag(ctx),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("get %s: %w", res, unwrap(err))
@@ -291,8 +294,9 @@ func (s *Store) Get(ctx context.Context, res storage.StorageResource, mac object
 
 func (s *Store) Delete(ctx context.Context, res storage.StorageResource, mac objects.MAC) error {
 	_, err := s.client.Delete(ctx, &DeleteRequest{
-		Mac:  mac[:],
-		Type: StorageResource(res),
+		Mac:   mac[:],
+		Type:  StorageResource(res),
+		Flags: storage.Flag(ctx),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to delete %s: %w", res, unwrap(err))
