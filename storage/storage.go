@@ -212,7 +212,7 @@ func ReceiveChunks(chunkReceiverFn func() ([]byte, error)) io.ReadCloser {
 	return streamReader
 }
 
-func (s *Store) List(ctx context.Context, res storage.StorageResource) ([]objects.MAC, error) {
+func (s *Store) List(ctx context.Context, res storage.StorageResource, flags uint32) ([]objects.MAC, error) {
 	resp, err := s.client.List(ctx, &ListRequest{
 		Type: StorageResource(res),
 	})
@@ -230,7 +230,7 @@ func (s *Store) List(ctx context.Context, res storage.StorageResource) ([]object
 	return macs, nil
 }
 
-func (s *Store) Put(ctx context.Context, res storage.StorageResource, mac objects.MAC, rd io.Reader) (int64, error) {
+func (s *Store) Put(ctx context.Context, res storage.StorageResource, mac objects.MAC, rd io.Reader, flags uint32) (int64, error) {
 	stream, err := s.client.Put(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to start Put stream: %w", unwrap(err))
@@ -262,7 +262,7 @@ func (s *Store) Put(ctx context.Context, res storage.StorageResource, mac object
 	return resp.BytesWritten, nil
 }
 
-func (s *Store) Get(ctx context.Context, res storage.StorageResource, mac objects.MAC, rg *storage.Range) (io.ReadCloser, error) {
+func (s *Store) Get(ctx context.Context, res storage.StorageResource, mac objects.MAC, rg *storage.Range, flags uint32) (io.ReadCloser, error) {
 	var grg *GetRequest_Range
 	if rg != nil {
 		grg = &GetRequest_Range{
@@ -289,7 +289,7 @@ func (s *Store) Get(ctx context.Context, res storage.StorageResource, mac object
 	}), nil
 }
 
-func (s *Store) Delete(ctx context.Context, res storage.StorageResource, mac objects.MAC) error {
+func (s *Store) Delete(ctx context.Context, res storage.StorageResource, mac objects.MAC, flags uint32) error {
 	_, err := s.client.Delete(ctx, &DeleteRequest{
 		Mac:  mac[:],
 		Type: StorageResource(res),

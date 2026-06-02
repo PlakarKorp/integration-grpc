@@ -166,7 +166,7 @@ func TestStore_List_ValidatesMacLength(t *testing.T) {
 	defer cleanup()
 
 	s, _ := NewStorage(context.Background(), conn, "p", nil)
-	_, err := s.List(context.Background(), storage.StorageResourcePackfile)
+	_, err := s.List(context.Background(), storage.StorageResourcePackfile, 0)
 	if err == nil {
 		t.Fatalf("expected validation error for short MAC")
 	}
@@ -179,7 +179,7 @@ func TestStore_List_RoundTripsMacs(t *testing.T) {
 	defer cleanup()
 
 	s, _ := NewStorage(context.Background(), conn, "p", nil)
-	got, err := s.List(context.Background(), storage.StorageResourcePackfile)
+	got, err := s.List(context.Background(), storage.StorageResourcePackfile, 0)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -200,7 +200,7 @@ func TestStore_PutStreamsChunks(t *testing.T) {
 		mac[i] = byte(i)
 	}
 	payload := []byte("hello world")
-	n, err := s.Put(context.Background(), storage.StorageResourcePackfile, mac, bytes.NewReader(payload))
+	n, err := s.Put(context.Background(), storage.StorageResourcePackfile, mac, bytes.NewReader(payload), 0)
 	if err != nil {
 		t.Fatalf("Put: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestStore_GetStreamsChunks(t *testing.T) {
 	defer cleanup()
 
 	s, _ := NewStorage(context.Background(), conn, "p", nil)
-	rd, err := s.Get(context.Background(), storage.StorageResourcePackfile, objects.MAC{}, nil)
+	rd, err := s.Get(context.Background(), storage.StorageResourcePackfile, objects.MAC{}, nil, 0)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -249,7 +249,7 @@ func TestStore_Get_UnavailableMapsToIOError(t *testing.T) {
 	defer cleanup()
 
 	s, _ := NewStorage(context.Background(), conn, "p", nil)
-	rd, err := s.Get(context.Background(), storage.StorageResourcePackfile, objects.MAC{}, nil)
+	rd, err := s.Get(context.Background(), storage.StorageResourcePackfile, objects.MAC{}, nil, 0)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
