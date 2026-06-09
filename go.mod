@@ -3,7 +3,7 @@ module github.com/PlakarKorp/integration-grpc
 go 1.25.0
 
 require (
-	github.com/PlakarKorp/kloset v1.1.0-rc.4.0.20260602145236-8f377d7ef5bc
+	github.com/PlakarKorp/kloset v1.1.0-rc.4.0.20260609072452-2df486e6320e
 	golang.org/x/sync v0.20.0
 	google.golang.org/grpc v1.81.1
 	google.golang.org/protobuf v1.36.11
