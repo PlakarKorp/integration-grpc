@@ -5,7 +5,6 @@ import (
 
 	grpc_storage "github.com/PlakarKorp/integration-grpc/storage"
 	"github.com/PlakarKorp/kloset/connectors/storage"
-	"github.com/PlakarKorp/kloset/kcontext"
 	"google.golang.org/grpc"
 )
 
@@ -24,13 +23,13 @@ func (c *storagePluginConn) Close(ctx context.Context) error {
 	return errConn
 }
 
-func ExecStorage(ktx *kcontext.KContext, proto string, params map[string]string, exe string, args []string) (storage.Store, error) {
-	client, err := spawn(ktx.Context, exe, args)
+func ExecStorage(ctx context.Context, proto string, params map[string]string, exe string, args []string) (storage.Store, error) {
+	client, err := spawn(ctx, exe, args)
 	if err != nil {
 		return nil, err
 	}
 
-	store, err := grpc_storage.NewStorage(ktx, client, proto, params)
+	store, err := grpc_storage.NewStorage(ctx, client, proto, params)
 	if err != nil {
 		client.Close()
 		return nil, err
