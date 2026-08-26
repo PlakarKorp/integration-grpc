@@ -11,6 +11,11 @@ enum StorageResource {
   STORAGE_RESOURCE_ECC_STATE = 5;
 }
 
+enum StorageFlags {
+  STORAGE_FLAGS_UNDEFINED = 0;
+  STORAGE_FLAGS_HOT = 1;
+}
+
 service Store {
   rpc Init(InitRequest) returns (InitResponse);
 
@@ -69,6 +74,7 @@ message SizeResponse {
 
 message ListRequest {
   StorageResource type = 1;
+  StorageFlags flags = 2;
 }
 message ListResponse {
   repeated bytes macs = 1;
@@ -78,6 +84,7 @@ message PutRequest {
   bytes mac = 1;
   StorageResource type = 2;
   bytes chunk = 3;
+  StorageFlags flags = 4;
 }
 message PutResponse {
   int64 bytes_written = 1;
@@ -92,6 +99,7 @@ message GetRequest {
   bytes mac = 1;
   StorageResource type = 2;
   optional Range range = 3;
+  StorageFlags flags = 4;
 }
 message GetResponse {
   bytes chunk = 1;
@@ -100,6 +108,7 @@ message GetResponse {
 message DeleteRequest {
   bytes mac = 1;
   StorageResource type = 2;
+  StorageFlags flags = 3;
 }
 message DeleteResponse {}
 
