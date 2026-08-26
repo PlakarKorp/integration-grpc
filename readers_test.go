@@ -48,6 +48,7 @@ func TestHoldingReaders_XattrKeySeparators(t *testing.T) {
 
 	r1 := &countingReadCloser{Reader: strings.NewReader("a")}
 	r2 := &countingReadCloser{Reader: strings.NewReader("b")}
+	r3 := &countingReadCloser{Reader: strings.NewReader("c")}
 
 	ext := &connectors.Record{
 		Pathname:  "/file",
@@ -63,15 +64,26 @@ func TestHoldingReaders_XattrKeySeparators(t *testing.T) {
 		XattrType: objects.AttributeADS,
 		Reader:    r2,
 	}
+	custom := &connectors.Record{
+		Pathname:  "/file",
+		IsXattr:   true,
+		XattrName: "user.x",
+		XattrType: objects.AttributeCustom,
+		Reader:    r3,
+	}
 
 	h.Track(ext)
 	h.Track(ads)
+	h.Track(custom)
 
 	if got := h.Get(ext); got != r1 {
 		t.Errorf("extended xattr lookup got the wrong reader")
 	}
 	if got := h.Get(ads); got != r2 {
 		t.Errorf("ADS xattr lookup got the wrong reader")
+	}
+	if got := h.Get(custom); got != r3 {
+		t.Errorf("Custom xattr lookup got the wrong reader")
 	}
 }
 

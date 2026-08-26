@@ -27,6 +27,9 @@ func recordToPath(record *connectors.Record) string {
 		if record.XattrType == objects.AttributeADS {
 			sep = "@"
 		}
+		if record.XattrType == objects.AttributeCustom {
+			sep = "%"
+		}
 		pathname = "xattr:" + pathname + sep + record.XattrName
 	}
 
