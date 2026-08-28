@@ -238,5 +238,17 @@ func (g *Importer) Import(ctx context.Context, records chan<- *connectors.Record
 		return g.sendResults(stream, results)
 	})
 
-	return wg.Wait()
+	if err := wg.Wait(); err != nil {
+		return err
+	}
+
+	for {
+		_, err := stream.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return unwrap(err)
+		}
+	}
 }
