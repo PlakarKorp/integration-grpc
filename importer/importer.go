@@ -223,6 +223,12 @@ func (g *Importer) sendResults(stream grpc.BidiStreamingClient[ImportRequest, Im
 }
 
 func (g *Importer) Import(ctx context.Context, records chan<- *connectors.Record, results <-chan *connectors.Result) error {
+	// XXX DO NOT USE errgroup.WithContext!  That context is
+	// cancelled *also* on wg.Wait(), while we definitely want to
+	// wait (pun intended) for it.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	stream, err := g.client.Import(ctx)
 	if err != nil {
 		return err
@@ -231,11 +237,19 @@ func (g *Importer) Import(ctx context.Context, records chan<- *connectors.Record
 	var wg errgroup.Group
 
 	wg.Go(func() error {
-		return g.receiveRecords(ctx, stream, records)
+		err := g.receiveRecords(ctx, stream, records)
+		if err != nil {
+			cancel()
+		}
+		return err
 	})
 
 	wg.Go(func() error {
-		return g.sendResults(stream, results)
+		err := g.sendResults(stream, results)
+		if err != nil {
+			cancel()
+		}
+		return err
 	})
 
 	if err := wg.Wait(); err != nil {
