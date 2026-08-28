@@ -180,7 +180,7 @@ func (g *Importer) receiveRecords(ctx context.Context, stream grpc.BidiStreaming
 			if errors.Is(err, io.EOF) {
 				err = nil
 			}
-			return err
+			return unwrap(err)
 		}
 
 		if res != nil && res.Finished {
