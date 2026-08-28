@@ -215,6 +215,10 @@ func (g *Importer) sendResults(stream grpc.BidiStreamingClient[ImportRequest, Im
 				// channel or we will deadlock
 			}
 
+			if errors.Is(err, io.EOF) {
+				err = nil
+			}
+
 			return err
 		}
 	}
