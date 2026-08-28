@@ -107,7 +107,7 @@ func (g *Exporter) transmitRecords(stream grpc.BidiStreamingClient[ExportRequest
 		}
 		if err := stream.Send(&hdr); err != nil {
 			if errors.Is(err, io.EOF) {
-				return nil
+				err = nil
 			}
 			return err
 		}
@@ -130,7 +130,7 @@ func (g *Exporter) transmitRecords(stream grpc.BidiStreamingClient[ExportRequest
 			if n != 0 {
 				if err := sendData(buf[:n]); err != nil {
 					if errors.Is(err, io.EOF) {
-						return nil
+						err = nil
 					}
 					record.Reader.Close()
 					return err
@@ -148,7 +148,7 @@ func (g *Exporter) transmitRecords(stream grpc.BidiStreamingClient[ExportRequest
 
 		if err := sendData(nil); err != nil {
 			if errors.Is(err, io.EOF) {
-				return nil
+				err = nil
 			}
 			return err
 		}
