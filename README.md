@@ -1,5 +1,9 @@
 # gRPC Integration
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/PlakarKorp/integration-grpc.svg)](https://pkg.go.dev/github.com/PlakarKorp/integration-grpc)
+[![codecov](https://codecov.io/gh/PlakarKorp/integration-grpc/branch/main/graph/badge.svg)](https://codecov.io/gh/PlakarKorp/integration-grpc)
+[![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](LICENSE)
+
 ## Overview
 
 If you're looking for how to write [Plakar][plakar] integrations,
