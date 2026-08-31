@@ -180,7 +180,7 @@ func (g *Importer) receiveRecords(ctx context.Context, stream grpc.BidiStreaming
 			if errors.Is(err, io.EOF) {
 				err = nil
 			}
-			return err
+			return unwrap(err)
 		}
 
 		if res != nil && res.Finished {
@@ -215,6 +215,10 @@ func (g *Importer) sendResults(stream grpc.BidiStreamingClient[ImportRequest, Im
 				// channel or we will deadlock
 			}
 
+			if errors.Is(err, io.EOF) {
+				err = nil
+			}
+
 			return err
 		}
 	}
@@ -238,5 +242,21 @@ func (g *Importer) Import(ctx context.Context, records chan<- *connectors.Record
 		return g.sendResults(stream, results)
 	})
 
-	return wg.Wait()
+	if err := wg.Wait(); err != nil {
+		return err
+	}
+
+	// the importer could have returned an error, and since
+	// receiveRecords() stops as soon as it sees a Finished
+	// record, we need to try to continue to read a bit to
+	// not miss it.
+	for {
+		_, err := stream.Recv()
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return unwrap(err)
+		}
+	}
 }
