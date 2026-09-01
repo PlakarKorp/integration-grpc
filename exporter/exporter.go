@@ -92,6 +92,11 @@ func (g *Exporter) Close(ctx context.Context) error {
 }
 
 func (g *Exporter) transmitRecords(stream grpc.BidiStreamingClient[ExportRequest, ExportResponse], records <-chan *connectors.Record) error {
+	defer func() {
+		for range records {
+			// draining to avoid deadlocks
+		}
+	}()
 	defer stream.CloseSend()
 
 	for record := range records {
@@ -101,6 +106,9 @@ func (g *Exporter) transmitRecords(stream grpc.BidiStreamingClient[ExportRequest
 			},
 		}
 		if err := stream.Send(&hdr); err != nil {
+			if errors.Is(err, io.EOF) {
+				err = nil
+			}
 			return err
 		}
 
@@ -121,6 +129,9 @@ func (g *Exporter) transmitRecords(stream grpc.BidiStreamingClient[ExportRequest
 			n, err := record.Reader.Read(buf)
 			if n != 0 {
 				if err := sendData(buf[:n]); err != nil {
+					if errors.Is(err, io.EOF) {
+						err = nil
+					}
 					record.Reader.Close()
 					return err
 				}
@@ -136,10 +147,12 @@ func (g *Exporter) transmitRecords(stream grpc.BidiStreamingClient[ExportRequest
 		}
 
 		if err := sendData(nil); err != nil {
+			if errors.Is(err, io.EOF) {
+				err = nil
+			}
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -152,7 +165,11 @@ func (g *Exporter) receiveResults(stream grpc.BidiStreamingClient[ExportRequest,
 			if errors.Is(err, io.EOF) {
 				err = nil
 			}
-			return err
+			return unwrap(err)
+		}
+
+		if res.Result == nil {
+			return fmt.Errorf("expected a result")
 		}
 
 		result, err := gconn.ResultFromProto(res.Result)
