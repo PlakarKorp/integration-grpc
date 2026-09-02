@@ -37,6 +37,12 @@ type fakeServer struct {
 	openChunks map[string][][]byte
 	openErr    error
 
+	// Because kloset is async, we can choose if we want import to err before results are closed or after
+	// Note: tests mostly use earlyImportErr because it is the case that is most likely to cause errors by design
+	// (closing the grpc stream before closing results has been the most problematic case).
+	earlyImportErr error
+	importErr      error
+
 	// captured Acks from the client
 	acks    []*gconn.Result
 	ackDone chan struct{} // closed when Import returns server-side
@@ -72,10 +78,14 @@ func (f *fakeServer) Import(stream grpc.BidiStreamingServer[ImportRequest, Impor
 		return err
 	}
 
+	if f.earlyImportErr != nil {
+		return f.earlyImportErr
+	}
+
 	for {
 		req, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
-			return nil
+			break
 		}
 		if err != nil {
 			return err
@@ -87,6 +97,8 @@ func (f *fakeServer) Import(stream grpc.BidiStreamingServer[ImportRequest, Impor
 			})
 		}
 	}
+
+	return f.importErr
 }
 
 func (f *fakeServer) Open(req *OpenRequest, stream grpc.ServerStreamingServer[OpenResponse]) error {
@@ -100,6 +112,48 @@ func (f *fakeServer) Open(req *OpenRequest, stream grpc.ServerStreamingServer[Op
 		}
 	}
 	return nil
+}
+
+// ---------------------------------------------------------------------------
+// kloset mocking
+// ---------------------------------------------------------------------------
+
+// runImport is basically a no-op kloset's snapshot.Builder.importSource.
+// It consumes and acks records, returns seen records and error
+func runImport(t *testing.T, imp *Importer) (error, []*connectors.Record) {
+	t.Helper()
+
+	records := make(chan *connectors.Record, 4)
+	results := make(chan *connectors.Result, 4)
+
+	var seen []*connectors.Record
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		defer close(results)
+		for r := range records {
+			seen = append(seen, r)
+			results <- r.Ok()
+		}
+	}()
+
+	importDone := make(chan error, 1)
+	go func() { importDone <- imp.Import(t.Context(), records, results) }()
+
+	var err error
+	select {
+	case err = <-importDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for Import to return")
+	}
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second): // shorter timer here because adding records to a list should not take long.
+		t.Fatal("timeout waiting for the record consumer to exit")
+	}
+
+	return err, seen
 }
 
 // ---------------------------------------------------------------------------
@@ -291,5 +345,143 @@ func TestImporter_OpenErrorPropagates(t *testing.T) {
 	defer rd.Close()
 	if _, err := io.ReadAll(rd); err == nil {
 		t.Fatalf("expected read error from server, got nil")
+	}
+}
+
+func TestImporter_EarlyImportErrorAfterFinishedIsReported(t *testing.T) {
+	srv := &fakeServer{
+		initResp:       &InitResponse{Type: "t", Root: "/"},
+		earlyImportErr: errors.New("import failed: simulated backup tool failure"),
+	}
+	conn, cleanup := dialTestServer(t, srv)
+	defer cleanup()
+
+	imp, err := NewImporter(t.Context(), conn, &connectors.Options{}, "p", nil)
+	if err != nil {
+		t.Fatalf("NewImporter: %v", err)
+	}
+
+	earlyImportErr, seen := runImport(t, imp.(*Importer))
+
+	if len(seen) != 0 {
+		t.Errorf("expected no record, got %d", len(seen))
+	}
+	if earlyImportErr == nil {
+		t.Fatal("expected the error returned by the plugin's Import(), got nil")
+	}
+	if !strings.Contains(earlyImportErr.Error(), "simulated backup tool failure") {
+		t.Errorf("unexpected error: %v", earlyImportErr)
+	}
+}
+
+func TestImporter_EarlyImportErrorAfterRecordsIsReported(t *testing.T) {
+	rec := &connectors.Record{
+		Pathname: "/a.txt",
+		FileInfo: objects.FileInfo{Lname: "a.txt", Lsize: 5, Lmode: 0o644},
+	}
+
+	srv := &fakeServer{
+		initResp:       &InitResponse{Type: "t", Root: "/"},
+		records:        []*gconn.Record{gconn.RecordToProto(rec)},
+		earlyImportErr: errors.New("import failed: simulated backup tool failure"),
+	}
+	conn, cleanup := dialTestServer(t, srv)
+	defer cleanup()
+
+	imp, err := NewImporter(t.Context(), conn, &connectors.Options{}, "p", nil)
+	if err != nil {
+		t.Fatalf("NewImporter: %v", err)
+	}
+
+	earlyImportErr, seen := runImport(t, imp.(*Importer))
+
+	if len(seen) != 1 || seen[0].Pathname != "/a.txt" {
+		t.Fatalf("expected the record emitted before the failure, got %+v", seen)
+	}
+	if earlyImportErr == nil {
+		t.Fatal("expected the error returned by the plugin's Import(), got nil")
+	}
+	if !strings.Contains(earlyImportErr.Error(), "simulated backup tool failure") {
+		t.Errorf("unexpected error: %v", earlyImportErr)
+	}
+}
+
+func TestImporter_ImportErrorAfterRecordsIsReported(t *testing.T) {
+	rec := &connectors.Record{
+		Pathname: "/a.txt",
+		FileInfo: objects.FileInfo{Lname: "a.txt", Lsize: 5, Lmode: 0o644},
+	}
+
+	srv := &fakeServer{
+		initResp:  &InitResponse{Type: "t", Root: "/"},
+		records:   []*gconn.Record{gconn.RecordToProto(rec)},
+		importErr: errors.New("import failed: simulated backup tool failure"),
+	}
+	conn, cleanup := dialTestServer(t, srv)
+	defer cleanup()
+
+	imp, err := NewImporter(t.Context(), conn, &connectors.Options{}, "p", nil)
+	if err != nil {
+		t.Fatalf("NewImporter: %v", err)
+	}
+
+	ImportErr, seen := runImport(t, imp.(*Importer))
+
+	if len(seen) != 1 || seen[0].Pathname != "/a.txt" {
+		t.Fatalf("expected the record emitted before the failure, got %+v", seen)
+	}
+	if ImportErr == nil {
+		t.Fatal("expected the error returned by the plugin's Import(), got nil")
+	}
+	if !strings.Contains(ImportErr.Error(), "simulated backup tool failure") {
+		t.Errorf("unexpected error: %v", ImportErr)
+	}
+}
+
+func TestImporter_EarlyImportCanceledIsUnwrapped(t *testing.T) {
+	srv := &fakeServer{
+		initResp:       &InitResponse{Type: "t", Root: "/"},
+		earlyImportErr: status.Error(codes.Canceled, "ctx"),
+	}
+	conn, cleanup := dialTestServer(t, srv)
+	defer cleanup()
+
+	imp, err := NewImporter(t.Context(), conn, &connectors.Options{}, "p", nil)
+	if err != nil {
+		t.Fatalf("NewImporter: %v", err)
+	}
+
+	earlyImportErr, _ := runImport(t, imp.(*Importer))
+
+	if !errors.Is(earlyImportErr, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", earlyImportErr)
+	}
+}
+
+func TestImporter_EarlyImportSucceedsAfterFinished(t *testing.T) {
+	rec := &connectors.Record{
+		Pathname: "/a.txt",
+		FileInfo: objects.FileInfo{Lname: "a.txt", Lsize: 5, Lmode: 0o644},
+	}
+
+	srv := &fakeServer{
+		initResp: &InitResponse{Type: "t", Root: "/"},
+		records:  []*gconn.Record{gconn.RecordToProto(rec)},
+	}
+	conn, cleanup := dialTestServer(t, srv)
+	defer cleanup()
+
+	imp, err := NewImporter(t.Context(), conn, &connectors.Options{}, "p", nil)
+	if err != nil {
+		t.Fatalf("NewImporter: %v", err)
+	}
+
+	earlyImportErr, seen := runImport(t, imp.(*Importer))
+
+	if earlyImportErr != nil {
+		t.Fatalf("Import returned: %v", earlyImportErr)
+	}
+	if len(seen) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(seen))
 	}
 }
