@@ -24,6 +24,14 @@ type Exporter struct {
 	typ    string
 	origin string
 	flags  location.Flags
+
+	// maxConcurrency caps how many payloads we upload at once.
+	maxConcurrency int
+
+	// hasPutData tells whether the server understands entry packets and
+	// the PutData RPC.  When it does not, we fall back to sending the
+	// records and their payloads over the Export stream, one at a time.
+	hasPutData bool
 }
 
 func unwrap(err error) error {
@@ -47,8 +55,14 @@ func unwrap(err error) error {
 }
 
 func NewExporter(ctx context.Context, client grpc.ClientConnInterface, opts *connectors.Options, proto string, config map[string]string) (exporter.Exporter, error) {
+	maxConcurrency := opts.MaxConcurrency
+	if maxConcurrency < 1 {
+		maxConcurrency = 1
+	}
+
 	exporter := &Exporter{
-		client: NewExporterClient(client),
+		client:         NewExporterClient(client),
+		maxConcurrency: maxConcurrency,
 	}
 
 	res, err := exporter.client.Init(ctx, &InitRequest{
@@ -72,6 +86,7 @@ func NewExporter(ctx context.Context, client grpc.ClientConnInterface, opts *con
 	exporter.typ = res.Type
 	exporter.origin = res.Origin
 	exporter.flags = location.Flags(res.Flags)
+	exporter.hasPutData = res.HasPutData
 
 	return exporter, nil
 }
