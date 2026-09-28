@@ -8,6 +8,7 @@ service Exporter {
   rpc Init(InitRequest) returns (InitResponse);
   rpc Ping(PingRequest) returns (PingResponse);
   rpc Export(stream ExportRequest) returns (stream ExportResponse);
+  rpc PutData(stream PutDataRequest) returns (PutDataResponse);
   rpc Close(CloseRequest) returns (CloseResponse);
 }
 
@@ -32,21 +33,57 @@ message InitResponse {
   string type = 2;
   string root = 3;
   uint32 flags = 4;
+
+  // Whether the server supports multiple PutData RPCs for the records
+  // payload, otherwise all data will be sent in Export() together
+  // with the records.
+  bool has_put_data = 5;
 }
 
 message PingRequest {}
 
 message PingResponse {}
 
+message ExportEntry {
+  plakar.connectors.Record record = 1;
+  uint64 id = 2;
+
+  // for "small" records, the client might send the whole content
+  // inline rather than waste one PutData() on it.
+  optional bytes chunk = 3;
+}
+
 message ExportRequest {
   oneof packet {
+    // files are either sent as a record followed by multiple chunks
     plakar.connectors.Record record = 1;
     bytes chunk = 2;
+
+    // or by a single record with a tracking id and its data being
+    // provided by the client hitting PutData() with the same id
+    ExportEntry entry = 3;
   }
 }
 
 message ExportResponse {
   plakar.connectors.Result result = 1;
+}
+
+message PutDataRequest {
+  oneof packet {
+    // sent once as the first message of the stream.
+    uint64 id = 1;
+
+    // the actual body, sent in multiple chunks.
+    bytes chunk = 2;
+
+    // client-side (i.e. kloset) error reading this record.
+    string error = 3;
+  }
+}
+
+message PutDataResponse {
+  bool aborted = 1;
 }
 
 message CloseRequest {}
