@@ -175,11 +175,15 @@ func (x *InitRequest) GetConfig() map[string]string {
 }
 
 type InitResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Origin        string                 `protobuf:"bytes,1,opt,name=origin,proto3" json:"origin,omitempty"`
-	Type          string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
-	Root          string                 `protobuf:"bytes,3,opt,name=root,proto3" json:"root,omitempty"`
-	Flags         uint32                 `protobuf:"varint,4,opt,name=flags,proto3" json:"flags,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Origin string                 `protobuf:"bytes,1,opt,name=origin,proto3" json:"origin,omitempty"`
+	Type   string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
+	Root   string                 `protobuf:"bytes,3,opt,name=root,proto3" json:"root,omitempty"`
+	Flags  uint32                 `protobuf:"varint,4,opt,name=flags,proto3" json:"flags,omitempty"`
+	// Whether the server supports multiple PutData RPCs for the records
+	// payload, otherwise all data will be sent in Export() together
+	// with the records.
+	HasPutData    bool `protobuf:"varint,5,opt,name=has_put_data,json=hasPutData,proto3" json:"has_put_data,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -240,6 +244,13 @@ func (x *InitResponse) GetFlags() uint32 {
 		return x.Flags
 	}
 	return 0
+}
+
+func (x *InitResponse) GetHasPutData() bool {
+	if x != nil {
+		return x.HasPutData
+	}
+	return false
 }
 
 type PingRequest struct {
@@ -314,12 +325,75 @@ func (*PingResponse) Descriptor() ([]byte, []int) {
 	return file_exporter_proto_rawDescGZIP(), []int{4}
 }
 
+type ExportEntry struct {
+	state  protoimpl.MessageState   `protogen:"open.v1"`
+	Record *integration_grpc.Record `protobuf:"bytes,1,opt,name=record,proto3" json:"record,omitempty"`
+	Id     uint64                   `protobuf:"varint,2,opt,name=id,proto3" json:"id,omitempty"`
+	// for "small" records, the client might send the whole content
+	// inline rather than waste one PutData() on it.
+	Chunk         []byte `protobuf:"bytes,3,opt,name=chunk,proto3,oneof" json:"chunk,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ExportEntry) Reset() {
+	*x = ExportEntry{}
+	mi := &file_exporter_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ExportEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ExportEntry) ProtoMessage() {}
+
+func (x *ExportEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_exporter_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ExportEntry.ProtoReflect.Descriptor instead.
+func (*ExportEntry) Descriptor() ([]byte, []int) {
+	return file_exporter_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ExportEntry) GetRecord() *integration_grpc.Record {
+	if x != nil {
+		return x.Record
+	}
+	return nil
+}
+
+func (x *ExportEntry) GetId() uint64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *ExportEntry) GetChunk() []byte {
+	if x != nil {
+		return x.Chunk
+	}
+	return nil
+}
+
 type ExportRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Packet:
 	//
 	//	*ExportRequest_Record
 	//	*ExportRequest_Chunk
+	//	*ExportRequest_Entry
 	Packet        isExportRequest_Packet `protobuf_oneof:"packet"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -327,7 +401,7 @@ type ExportRequest struct {
 
 func (x *ExportRequest) Reset() {
 	*x = ExportRequest{}
-	mi := &file_exporter_proto_msgTypes[5]
+	mi := &file_exporter_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -339,7 +413,7 @@ func (x *ExportRequest) String() string {
 func (*ExportRequest) ProtoMessage() {}
 
 func (x *ExportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_exporter_proto_msgTypes[5]
+	mi := &file_exporter_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -352,7 +426,7 @@ func (x *ExportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExportRequest.ProtoReflect.Descriptor instead.
 func (*ExportRequest) Descriptor() ([]byte, []int) {
-	return file_exporter_proto_rawDescGZIP(), []int{5}
+	return file_exporter_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ExportRequest) GetPacket() isExportRequest_Packet {
@@ -380,11 +454,21 @@ func (x *ExportRequest) GetChunk() []byte {
 	return nil
 }
 
+func (x *ExportRequest) GetEntry() *ExportEntry {
+	if x != nil {
+		if x, ok := x.Packet.(*ExportRequest_Entry); ok {
+			return x.Entry
+		}
+	}
+	return nil
+}
+
 type isExportRequest_Packet interface {
 	isExportRequest_Packet()
 }
 
 type ExportRequest_Record struct {
+	// files are either sent as a record followed by multiple chunks
 	Record *integration_grpc.Record `protobuf:"bytes,1,opt,name=record,proto3,oneof"`
 }
 
@@ -392,9 +476,17 @@ type ExportRequest_Chunk struct {
 	Chunk []byte `protobuf:"bytes,2,opt,name=chunk,proto3,oneof"`
 }
 
+type ExportRequest_Entry struct {
+	// or by a single record with a tracking id and its data being
+	// provided by the client hitting PutData() with the same id
+	Entry *ExportEntry `protobuf:"bytes,3,opt,name=entry,proto3,oneof"`
+}
+
 func (*ExportRequest_Record) isExportRequest_Packet() {}
 
 func (*ExportRequest_Chunk) isExportRequest_Packet() {}
+
+func (*ExportRequest_Entry) isExportRequest_Packet() {}
 
 type ExportResponse struct {
 	state         protoimpl.MessageState   `protogen:"open.v1"`
@@ -405,7 +497,7 @@ type ExportResponse struct {
 
 func (x *ExportResponse) Reset() {
 	*x = ExportResponse{}
-	mi := &file_exporter_proto_msgTypes[6]
+	mi := &file_exporter_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -417,7 +509,7 @@ func (x *ExportResponse) String() string {
 func (*ExportResponse) ProtoMessage() {}
 
 func (x *ExportResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_exporter_proto_msgTypes[6]
+	mi := &file_exporter_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -430,7 +522,7 @@ func (x *ExportResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExportResponse.ProtoReflect.Descriptor instead.
 func (*ExportResponse) Descriptor() ([]byte, []int) {
-	return file_exporter_proto_rawDescGZIP(), []int{6}
+	return file_exporter_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ExportResponse) GetResult() *integration_grpc.Result {
@@ -438,6 +530,151 @@ func (x *ExportResponse) GetResult() *integration_grpc.Result {
 		return x.Result
 	}
 	return nil
+}
+
+type PutDataRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Packet:
+	//
+	//	*PutDataRequest_Id
+	//	*PutDataRequest_Chunk
+	//	*PutDataRequest_Error
+	Packet        isPutDataRequest_Packet `protobuf_oneof:"packet"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PutDataRequest) Reset() {
+	*x = PutDataRequest{}
+	mi := &file_exporter_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PutDataRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PutDataRequest) ProtoMessage() {}
+
+func (x *PutDataRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_exporter_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PutDataRequest.ProtoReflect.Descriptor instead.
+func (*PutDataRequest) Descriptor() ([]byte, []int) {
+	return file_exporter_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *PutDataRequest) GetPacket() isPutDataRequest_Packet {
+	if x != nil {
+		return x.Packet
+	}
+	return nil
+}
+
+func (x *PutDataRequest) GetId() uint64 {
+	if x != nil {
+		if x, ok := x.Packet.(*PutDataRequest_Id); ok {
+			return x.Id
+		}
+	}
+	return 0
+}
+
+func (x *PutDataRequest) GetChunk() []byte {
+	if x != nil {
+		if x, ok := x.Packet.(*PutDataRequest_Chunk); ok {
+			return x.Chunk
+		}
+	}
+	return nil
+}
+
+func (x *PutDataRequest) GetError() string {
+	if x != nil {
+		if x, ok := x.Packet.(*PutDataRequest_Error); ok {
+			return x.Error
+		}
+	}
+	return ""
+}
+
+type isPutDataRequest_Packet interface {
+	isPutDataRequest_Packet()
+}
+
+type PutDataRequest_Id struct {
+	// sent once as the first message of the stream.
+	Id uint64 `protobuf:"varint,1,opt,name=id,proto3,oneof"`
+}
+
+type PutDataRequest_Chunk struct {
+	// the actual body, sent in multiple chunks.
+	Chunk []byte `protobuf:"bytes,2,opt,name=chunk,proto3,oneof"`
+}
+
+type PutDataRequest_Error struct {
+	// client-side (i.e. kloset) error reading this record.
+	Error string `protobuf:"bytes,3,opt,name=error,proto3,oneof"`
+}
+
+func (*PutDataRequest_Id) isPutDataRequest_Packet() {}
+
+func (*PutDataRequest_Chunk) isPutDataRequest_Packet() {}
+
+func (*PutDataRequest_Error) isPutDataRequest_Packet() {}
+
+type PutDataResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Aborted       bool                   `protobuf:"varint,1,opt,name=aborted,proto3" json:"aborted,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PutDataResponse) Reset() {
+	*x = PutDataResponse{}
+	mi := &file_exporter_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PutDataResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PutDataResponse) ProtoMessage() {}
+
+func (x *PutDataResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_exporter_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PutDataResponse.ProtoReflect.Descriptor instead.
+func (*PutDataResponse) Descriptor() ([]byte, []int) {
+	return file_exporter_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *PutDataResponse) GetAborted() bool {
+	if x != nil {
+		return x.Aborted
+	}
+	return false
 }
 
 type CloseRequest struct {
@@ -448,7 +685,7 @@ type CloseRequest struct {
 
 func (x *CloseRequest) Reset() {
 	*x = CloseRequest{}
-	mi := &file_exporter_proto_msgTypes[7]
+	mi := &file_exporter_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -460,7 +697,7 @@ func (x *CloseRequest) String() string {
 func (*CloseRequest) ProtoMessage() {}
 
 func (x *CloseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_exporter_proto_msgTypes[7]
+	mi := &file_exporter_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -473,7 +710,7 @@ func (x *CloseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloseRequest.ProtoReflect.Descriptor instead.
 func (*CloseRequest) Descriptor() ([]byte, []int) {
-	return file_exporter_proto_rawDescGZIP(), []int{7}
+	return file_exporter_proto_rawDescGZIP(), []int{10}
 }
 
 type CloseResponse struct {
@@ -484,7 +721,7 @@ type CloseResponse struct {
 
 func (x *CloseResponse) Reset() {
 	*x = CloseResponse{}
-	mi := &file_exporter_proto_msgTypes[8]
+	mi := &file_exporter_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -496,7 +733,7 @@ func (x *CloseResponse) String() string {
 func (*CloseResponse) ProtoMessage() {}
 
 func (x *CloseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_exporter_proto_msgTypes[8]
+	mi := &file_exporter_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -509,7 +746,7 @@ func (x *CloseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloseResponse.ProtoReflect.Descriptor instead.
 func (*CloseResponse) Descriptor() ([]byte, []int) {
-	return file_exporter_proto_rawDescGZIP(), []int{8}
+	return file_exporter_proto_rawDescGZIP(), []int{11}
 }
 
 var File_exporter_proto protoreflect.FileDescriptor
@@ -531,26 +768,42 @@ const file_exporter_proto_rawDesc = "" +
 	"\x06config\x18\x03 \x03(\v2(.plakar.exporter.InitRequest.ConfigEntryR\x06config\x1a9\n" +
 	"\vConfigEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"d\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x86\x01\n" +
 	"\fInitResponse\x12\x16\n" +
 	"\x06origin\x18\x01 \x01(\tR\x06origin\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x12\n" +
 	"\x04root\x18\x03 \x01(\tR\x04root\x12\x14\n" +
-	"\x05flags\x18\x04 \x01(\rR\x05flags\"\r\n" +
+	"\x05flags\x18\x04 \x01(\rR\x05flags\x12 \n" +
+	"\fhas_put_data\x18\x05 \x01(\bR\n" +
+	"hasPutData\"\r\n" +
 	"\vPingRequest\"\x0e\n" +
-	"\fPingResponse\"f\n" +
+	"\fPingResponse\"u\n" +
+	"\vExportEntry\x121\n" +
+	"\x06record\x18\x01 \x01(\v2\x19.plakar.connectors.RecordR\x06record\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\x04R\x02id\x12\x19\n" +
+	"\x05chunk\x18\x03 \x01(\fH\x00R\x05chunk\x88\x01\x01B\b\n" +
+	"\x06_chunk\"\x9c\x01\n" +
 	"\rExportRequest\x123\n" +
 	"\x06record\x18\x01 \x01(\v2\x19.plakar.connectors.RecordH\x00R\x06record\x12\x16\n" +
-	"\x05chunk\x18\x02 \x01(\fH\x00R\x05chunkB\b\n" +
+	"\x05chunk\x18\x02 \x01(\fH\x00R\x05chunk\x124\n" +
+	"\x05entry\x18\x03 \x01(\v2\x1c.plakar.exporter.ExportEntryH\x00R\x05entryB\b\n" +
 	"\x06packet\"C\n" +
 	"\x0eExportResponse\x121\n" +
-	"\x06result\x18\x01 \x01(\v2\x19.plakar.connectors.ResultR\x06result\"\x0e\n" +
+	"\x06result\x18\x01 \x01(\v2\x19.plakar.connectors.ResultR\x06result\"\\\n" +
+	"\x0ePutDataRequest\x12\x10\n" +
+	"\x02id\x18\x01 \x01(\x04H\x00R\x02id\x12\x16\n" +
+	"\x05chunk\x18\x02 \x01(\fH\x00R\x05chunk\x12\x16\n" +
+	"\x05error\x18\x03 \x01(\tH\x00R\x05errorB\b\n" +
+	"\x06packet\"+\n" +
+	"\x0fPutDataResponse\x12\x18\n" +
+	"\aaborted\x18\x01 \x01(\bR\aaborted\"\x0e\n" +
 	"\fCloseRequest\"\x0f\n" +
-	"\rCloseResponse2\xab\x02\n" +
+	"\rCloseResponse2\xfb\x02\n" +
 	"\bExporter\x12C\n" +
 	"\x04Init\x12\x1c.plakar.exporter.InitRequest\x1a\x1d.plakar.exporter.InitResponse\x12C\n" +
 	"\x04Ping\x12\x1c.plakar.exporter.PingRequest\x1a\x1d.plakar.exporter.PingResponse\x12M\n" +
-	"\x06Export\x12\x1e.plakar.exporter.ExportRequest\x1a\x1f.plakar.exporter.ExportResponse(\x010\x01\x12F\n" +
+	"\x06Export\x12\x1e.plakar.exporter.ExportRequest\x1a\x1f.plakar.exporter.ExportResponse(\x010\x01\x12N\n" +
+	"\aPutData\x12\x1f.plakar.exporter.PutDataRequest\x1a .plakar.exporter.PutDataResponse(\x01\x12F\n" +
 	"\x05Close\x12\x1d.plakar.exporter.CloseRequest\x1a\x1e.plakar.exporter.CloseResponseb\x06proto3"
 
 var (
@@ -565,39 +818,46 @@ func file_exporter_proto_rawDescGZIP() []byte {
 	return file_exporter_proto_rawDescData
 }
 
-var file_exporter_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_exporter_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_exporter_proto_goTypes = []any{
 	(*Options)(nil),                 // 0: plakar.exporter.Options
 	(*InitRequest)(nil),             // 1: plakar.exporter.InitRequest
 	(*InitResponse)(nil),            // 2: plakar.exporter.InitResponse
 	(*PingRequest)(nil),             // 3: plakar.exporter.PingRequest
 	(*PingResponse)(nil),            // 4: plakar.exporter.PingResponse
-	(*ExportRequest)(nil),           // 5: plakar.exporter.ExportRequest
-	(*ExportResponse)(nil),          // 6: plakar.exporter.ExportResponse
-	(*CloseRequest)(nil),            // 7: plakar.exporter.CloseRequest
-	(*CloseResponse)(nil),           // 8: plakar.exporter.CloseResponse
-	nil,                             // 9: plakar.exporter.InitRequest.ConfigEntry
-	(*integration_grpc.Record)(nil), // 10: plakar.connectors.Record
-	(*integration_grpc.Result)(nil), // 11: plakar.connectors.Result
+	(*ExportEntry)(nil),             // 5: plakar.exporter.ExportEntry
+	(*ExportRequest)(nil),           // 6: plakar.exporter.ExportRequest
+	(*ExportResponse)(nil),          // 7: plakar.exporter.ExportResponse
+	(*PutDataRequest)(nil),          // 8: plakar.exporter.PutDataRequest
+	(*PutDataResponse)(nil),         // 9: plakar.exporter.PutDataResponse
+	(*CloseRequest)(nil),            // 10: plakar.exporter.CloseRequest
+	(*CloseResponse)(nil),           // 11: plakar.exporter.CloseResponse
+	nil,                             // 12: plakar.exporter.InitRequest.ConfigEntry
+	(*integration_grpc.Record)(nil), // 13: plakar.connectors.Record
+	(*integration_grpc.Result)(nil), // 14: plakar.connectors.Result
 }
 var file_exporter_proto_depIdxs = []int32{
 	0,  // 0: plakar.exporter.InitRequest.options:type_name -> plakar.exporter.Options
-	9,  // 1: plakar.exporter.InitRequest.config:type_name -> plakar.exporter.InitRequest.ConfigEntry
-	10, // 2: plakar.exporter.ExportRequest.record:type_name -> plakar.connectors.Record
-	11, // 3: plakar.exporter.ExportResponse.result:type_name -> plakar.connectors.Result
-	1,  // 4: plakar.exporter.Exporter.Init:input_type -> plakar.exporter.InitRequest
-	3,  // 5: plakar.exporter.Exporter.Ping:input_type -> plakar.exporter.PingRequest
-	5,  // 6: plakar.exporter.Exporter.Export:input_type -> plakar.exporter.ExportRequest
-	7,  // 7: plakar.exporter.Exporter.Close:input_type -> plakar.exporter.CloseRequest
-	2,  // 8: plakar.exporter.Exporter.Init:output_type -> plakar.exporter.InitResponse
-	4,  // 9: plakar.exporter.Exporter.Ping:output_type -> plakar.exporter.PingResponse
-	6,  // 10: plakar.exporter.Exporter.Export:output_type -> plakar.exporter.ExportResponse
-	8,  // 11: plakar.exporter.Exporter.Close:output_type -> plakar.exporter.CloseResponse
-	8,  // [8:12] is the sub-list for method output_type
-	4,  // [4:8] is the sub-list for method input_type
-	4,  // [4:4] is the sub-list for extension type_name
-	4,  // [4:4] is the sub-list for extension extendee
-	0,  // [0:4] is the sub-list for field type_name
+	12, // 1: plakar.exporter.InitRequest.config:type_name -> plakar.exporter.InitRequest.ConfigEntry
+	13, // 2: plakar.exporter.ExportEntry.record:type_name -> plakar.connectors.Record
+	13, // 3: plakar.exporter.ExportRequest.record:type_name -> plakar.connectors.Record
+	5,  // 4: plakar.exporter.ExportRequest.entry:type_name -> plakar.exporter.ExportEntry
+	14, // 5: plakar.exporter.ExportResponse.result:type_name -> plakar.connectors.Result
+	1,  // 6: plakar.exporter.Exporter.Init:input_type -> plakar.exporter.InitRequest
+	3,  // 7: plakar.exporter.Exporter.Ping:input_type -> plakar.exporter.PingRequest
+	6,  // 8: plakar.exporter.Exporter.Export:input_type -> plakar.exporter.ExportRequest
+	8,  // 9: plakar.exporter.Exporter.PutData:input_type -> plakar.exporter.PutDataRequest
+	10, // 10: plakar.exporter.Exporter.Close:input_type -> plakar.exporter.CloseRequest
+	2,  // 11: plakar.exporter.Exporter.Init:output_type -> plakar.exporter.InitResponse
+	4,  // 12: plakar.exporter.Exporter.Ping:output_type -> plakar.exporter.PingResponse
+	7,  // 13: plakar.exporter.Exporter.Export:output_type -> plakar.exporter.ExportResponse
+	9,  // 14: plakar.exporter.Exporter.PutData:output_type -> plakar.exporter.PutDataResponse
+	11, // 15: plakar.exporter.Exporter.Close:output_type -> plakar.exporter.CloseResponse
+	11, // [11:16] is the sub-list for method output_type
+	6,  // [6:11] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_exporter_proto_init() }
@@ -605,9 +865,16 @@ func file_exporter_proto_init() {
 	if File_exporter_proto != nil {
 		return
 	}
-	file_exporter_proto_msgTypes[5].OneofWrappers = []any{
+	file_exporter_proto_msgTypes[5].OneofWrappers = []any{}
+	file_exporter_proto_msgTypes[6].OneofWrappers = []any{
 		(*ExportRequest_Record)(nil),
 		(*ExportRequest_Chunk)(nil),
+		(*ExportRequest_Entry)(nil),
+	}
+	file_exporter_proto_msgTypes[8].OneofWrappers = []any{
+		(*PutDataRequest_Id)(nil),
+		(*PutDataRequest_Chunk)(nil),
+		(*PutDataRequest_Error)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -615,7 +882,7 @@ func file_exporter_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_exporter_proto_rawDesc), len(file_exporter_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

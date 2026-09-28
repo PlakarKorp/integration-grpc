@@ -19,10 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Exporter_Init_FullMethodName   = "/plakar.exporter.Exporter/Init"
-	Exporter_Ping_FullMethodName   = "/plakar.exporter.Exporter/Ping"
-	Exporter_Export_FullMethodName = "/plakar.exporter.Exporter/Export"
-	Exporter_Close_FullMethodName  = "/plakar.exporter.Exporter/Close"
+	Exporter_Init_FullMethodName    = "/plakar.exporter.Exporter/Init"
+	Exporter_Ping_FullMethodName    = "/plakar.exporter.Exporter/Ping"
+	Exporter_Export_FullMethodName  = "/plakar.exporter.Exporter/Export"
+	Exporter_PutData_FullMethodName = "/plakar.exporter.Exporter/PutData"
+	Exporter_Close_FullMethodName   = "/plakar.exporter.Exporter/Close"
 )
 
 // ExporterClient is the client API for Exporter service.
@@ -32,6 +33,7 @@ type ExporterClient interface {
 	Init(ctx context.Context, in *InitRequest, opts ...grpc.CallOption) (*InitResponse, error)
 	Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error)
 	Export(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ExportRequest, ExportResponse], error)
+	PutData(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[PutDataRequest, PutDataResponse], error)
 	Close(ctx context.Context, in *CloseRequest, opts ...grpc.CallOption) (*CloseResponse, error)
 }
 
@@ -76,6 +78,19 @@ func (c *exporterClient) Export(ctx context.Context, opts ...grpc.CallOption) (g
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Exporter_ExportClient = grpc.BidiStreamingClient[ExportRequest, ExportResponse]
 
+func (c *exporterClient) PutData(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[PutDataRequest, PutDataResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &Exporter_ServiceDesc.Streams[1], Exporter_PutData_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[PutDataRequest, PutDataResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Exporter_PutDataClient = grpc.ClientStreamingClient[PutDataRequest, PutDataResponse]
+
 func (c *exporterClient) Close(ctx context.Context, in *CloseRequest, opts ...grpc.CallOption) (*CloseResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CloseResponse)
@@ -93,6 +108,7 @@ type ExporterServer interface {
 	Init(context.Context, *InitRequest) (*InitResponse, error)
 	Ping(context.Context, *PingRequest) (*PingResponse, error)
 	Export(grpc.BidiStreamingServer[ExportRequest, ExportResponse]) error
+	PutData(grpc.ClientStreamingServer[PutDataRequest, PutDataResponse]) error
 	Close(context.Context, *CloseRequest) (*CloseResponse, error)
 	mustEmbedUnimplementedExporterServer()
 }
@@ -112,6 +128,9 @@ func (UnimplementedExporterServer) Ping(context.Context, *PingRequest) (*PingRes
 }
 func (UnimplementedExporterServer) Export(grpc.BidiStreamingServer[ExportRequest, ExportResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method Export not implemented")
+}
+func (UnimplementedExporterServer) PutData(grpc.ClientStreamingServer[PutDataRequest, PutDataResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method PutData not implemented")
 }
 func (UnimplementedExporterServer) Close(context.Context, *CloseRequest) (*CloseResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Close not implemented")
@@ -180,6 +199,13 @@ func _Exporter_Export_Handler(srv interface{}, stream grpc.ServerStream) error {
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type Exporter_ExportServer = grpc.BidiStreamingServer[ExportRequest, ExportResponse]
 
+func _Exporter_PutData_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ExporterServer).PutData(&grpc.GenericServerStream[PutDataRequest, PutDataResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Exporter_PutDataServer = grpc.ClientStreamingServer[PutDataRequest, PutDataResponse]
+
 func _Exporter_Close_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CloseRequest)
 	if err := dec(in); err != nil {
@@ -223,6 +249,11 @@ var Exporter_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "Export",
 			Handler:       _Exporter_Export_Handler,
 			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "PutData",
+			Handler:       _Exporter_PutData_Handler,
 			ClientStreams: true,
 		},
 	},
