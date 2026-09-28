@@ -37,6 +37,8 @@ message Record {
   FileInfo fileInfo = 8;
   repeated string extendedAttributes = 9;
   uint32 fileAttributes = 10;
+
+  string id = 11;
 }
 
 message Result {
