@@ -239,7 +239,11 @@ func (g *Exporter) transmitEntries(ctx context.Context, stream grpc.BidiStreamin
 		// the session is going down; don't wait on payloads that
 		// nobody is going to read any more.
 		cancel(err)
-	} else if err := ignoreEOF(stream.CloseSend()); err != nil {
+	}
+
+	// let the exporter know the records are over while we finish to
+	// upload the data.
+	if err := ignoreEOF(stream.CloseSend()); err != nil {
 		cancel(err)
 	}
 

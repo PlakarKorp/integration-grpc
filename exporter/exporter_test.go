@@ -927,8 +927,15 @@ func TestExporter_AbandonedRecordsAreClosed(t *testing.T) {
 		name:    "legacy",
 		srv:     &fakeServer{earlyExportErr: errors.New("simulated export tool failure")},
 		payload: []byte("data"),
+	}, {
+		// a payload fails, which cancels the sender
+		name:    "entry",
+		srv:     newEntryServer(),
+		payload: bytes.Repeat([]byte("x"), inlineThreshold*3),
 	}} {
 		t.Run(tc.name, func(t *testing.T) {
+			tc.srv.putDataErr = status.Error(codes.Internal, "nope")
+
 			conn, cleanup := dialTestServer(t, tc.srv)
 			t.Cleanup(cleanup)
 
