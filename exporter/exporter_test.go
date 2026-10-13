@@ -76,6 +76,9 @@ type fakeServer struct {
 	payloads map[uint64][]byte
 	// payloadErrs holds what the client reported it could not read.
 	payloadErrs map[uint64]string
+
+	// ids collects every entry id the server saw, in arrival order.
+	ids []uint64
 }
 
 // join moves a record into received once both its entry and its
@@ -243,6 +246,7 @@ func (f *fakeServer) Export(stream grpc.BidiStreamingServer[ExportRequest, Expor
 			f.mu.Lock()
 			switch {
 			case p.Entry.Id != 0:
+				f.ids = append(f.ids, p.Entry.Id)
 				f.entries[p.Entry.Id] = p.Entry.Record
 				f.join(p.Entry.Id)
 			default:
@@ -978,5 +982,62 @@ func TestExporter_AbandonedRecordsAreClosed(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestExporter_PayloadIdsAreUniqueAcrossExports pins down what the
+// plugin side relies on: an id names one payload for the whole life of
+// the exporter, not just for one Export call.
+func TestExporter_PayloadIdsAreUniqueAcrossExports(t *testing.T) {
+	const (
+		exports = 2
+		perCall = 3
+	)
+	big := bytes.Repeat([]byte("x"), inlineThreshold*2)
+
+	srv := newEntryServer()
+	exp := dialEntryServer(t, srv, 4)
+
+	errs := make(chan error, exports)
+	for range exports {
+		go func() {
+			records := make(chan *connectors.Record, perCall)
+			for range perCall {
+				records <- recordOf("f", big, nil)
+			}
+			close(records)
+
+			results := make(chan *connectors.Result, perCall+1)
+			done := make(chan error, 1)
+			go func() { done <- exp.Export(t.Context(), records, results) }()
+			for range results {
+			}
+			errs <- <-done
+		}()
+	}
+
+	for range exports {
+		select {
+		case err := <-errs:
+			if err != nil {
+				t.Fatalf("Export: %v", err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("timeout waiting for Export to return")
+		}
+	}
+
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+
+	seen := make(map[uint64]bool, len(srv.ids))
+	for _, id := range srv.ids {
+		if seen[id] {
+			t.Fatalf("payload id %d handed out twice", id)
+		}
+		seen[id] = true
+	}
+	if len(srv.ids) != exports*perCall {
+		t.Fatalf("server saw %d ids, want %d", len(srv.ids), exports*perCall)
 	}
 }

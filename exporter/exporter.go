@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"sync/atomic"
 
 	gconn "github.com/PlakarKorp/integration-grpc"
 	"github.com/PlakarKorp/kloset/connectors"
@@ -28,6 +29,10 @@ type Exporter struct {
 
 	// maxConcurrency caps how many payloads we upload at once.
 	maxConcurrency int
+
+	// payload IDs; they have to be unique since we might enter
+	// Export more than once.
+	nextID atomic.Uint64
 
 	// hasPutData tells whether the server understands entry packets and
 	// the PutData RPC.  When it does not, we fall back to sending the
@@ -258,7 +263,6 @@ func (g *Exporter) sendEntries(ctx context.Context, stream grpc.BidiStreamingCli
 		})))
 	}
 
-	var id uint64
 	for record := range records {
 		if err := ctx.Err(); err != nil {
 			record.Close()
@@ -283,7 +287,7 @@ func (g *Exporter) sendEntries(ctx context.Context, stream grpc.BidiStreamingCli
 			continue
 		}
 
-		id++
+		id := g.nextID.Add(1)
 		job := payloadJob{id: id, buf: buf, rd: record.Reader, err: err}
 
 		entry.Id = id
