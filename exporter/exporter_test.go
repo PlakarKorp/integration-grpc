@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -43,6 +44,131 @@ type fakeServer struct {
 	// Result at all before anything else.
 	// Takes precedence over earlyExportErr
 	sendNilResult bool
+
+	// hasPutData advertises the entry protocol in Init, putting the
+	// client on the PutData path.
+	hasPutData bool
+
+	// putDataErr makes every PutData handler fail with it.
+	putDataErr error
+
+	// failFirstPutData fails the first PutData stream and parks the
+	// others until they are cancelled, so that the failure has
+	// in-flight payloads to take down with it.
+	failFirstPutData bool
+
+	// abortPayloads makes the PutData handlers stop reading after the
+	// first chunk and report the payload as deliberately dropped.
+	abortPayloads bool
+
+	// putDataBarrier, when set, blocks every PutData handler until it
+	// is closed, after signalling putDataArrived.  Used to observe how
+	// many payloads are in flight at once.
+	putDataBarrier chan struct{}
+	putDataArrived chan struct{}
+
+	putDataCalls int
+
+	// entries and payloads are joined into received as the two halves
+	// of a record arrive, in either order.
+	entries  map[uint64]*gconn.Record
+	payloads map[uint64][]byte
+	// payloadErrs holds what the client reported it could not read.
+	payloadErrs map[uint64]string
+}
+
+// join moves a record into received once both its entry and its
+// payload have arrived.  Called with mu held.
+func (f *fakeServer) join(id uint64) {
+	record, ok := f.entries[id]
+	if !ok {
+		return
+	}
+	payload, ok := f.payloads[id]
+	if !ok {
+		return
+	}
+	delete(f.entries, id)
+	delete(f.payloads, id)
+	f.received = append(f.received, receivedFile{record: record, payload: payload})
+}
+
+func (f *fakeServer) PutData(stream grpc.ClientStreamingServer[PutDataRequest, PutDataResponse]) error {
+	if f.putDataErr != nil {
+		return f.putDataErr
+	}
+
+	f.mu.Lock()
+	f.putDataCalls++
+	first := f.putDataCalls == 1
+	f.mu.Unlock()
+
+	if f.failFirstPutData {
+		if first {
+			return status.Error(codes.Internal, "nope")
+		}
+		<-stream.Context().Done()
+		return stream.Context().Err()
+	}
+
+	if f.putDataBarrier != nil {
+		f.putDataArrived <- struct{}{}
+		<-f.putDataBarrier
+	}
+
+	var (
+		id     uint64
+		seen   bool
+		failed bool
+		buf    bytes.Buffer
+	)
+
+	for {
+		req, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		switch p := req.Packet.(type) {
+		case *PutDataRequest_Id:
+			id, seen = p.Id, true
+		case *PutDataRequest_Chunk:
+			if !seen {
+				return status.Error(codes.InvalidArgument, "chunk before id")
+			}
+			buf.Write(p.Chunk)
+			if f.abortPayloads {
+				f.mu.Lock()
+				f.payloadErrs[id] = "aborted"
+				f.mu.Unlock()
+				return stream.SendAndClose(&PutDataResponse{Aborted: true})
+			}
+		case *PutDataRequest_Error:
+			if !seen {
+				return status.Error(codes.InvalidArgument, "error before id")
+			}
+			failed = true
+			f.mu.Lock()
+			f.payloadErrs[id] = p.Error
+			f.mu.Unlock()
+		}
+	}
+
+	if !seen {
+		return status.Error(codes.InvalidArgument, "no id")
+	}
+
+	if !failed {
+		f.mu.Lock()
+		f.payloads[id] = buf.Bytes()
+		f.join(id)
+		f.mu.Unlock()
+	}
+
+	return stream.SendAndClose(&PutDataResponse{})
 }
 
 type receivedFile struct {
@@ -51,7 +177,7 @@ type receivedFile struct {
 }
 
 func (f *fakeServer) Init(ctx context.Context, req *InitRequest) (*InitResponse, error) {
-	return &InitResponse{Origin: "o", Type: "t", Root: "/", Flags: 0}, nil
+	return &InitResponse{Origin: "o", Type: "t", Root: "/", Flags: 0, HasPutData: f.hasPutData}, nil
 }
 func (f *fakeServer) Ping(ctx context.Context, _ *PingRequest) (*PingResponse, error) {
 	return &PingResponse{}, nil
@@ -112,6 +238,19 @@ func (f *fakeServer) Export(stream grpc.BidiStreamingServer[ExportRequest, Expor
 			if !p.Record.HasReader {
 				flush()
 			}
+		case *ExportRequest_Entry:
+			f.mu.Lock()
+			switch {
+			case p.Entry.Id != 0:
+				f.entries[p.Entry.Id] = p.Entry.Record
+				f.join(p.Entry.Id)
+			default:
+				f.received = append(f.received, receivedFile{
+					record:  p.Entry.Record,
+					payload: p.Entry.Chunk,
+				})
+			}
+			f.mu.Unlock()
 		case *ExportRequest_Chunk:
 			if len(p.Chunk) == 0 {
 				// terminator chunk (client sends a zero-length chunk
@@ -489,5 +628,276 @@ func TestExporter_TransmitRecordsCollapsesEOF(t *testing.T) {
 	case <-producer:
 	case <-time.After(2 * time.Second):
 		t.Fatal("the producer is still blocked writing to records")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Entry protocol (PutData)
+// ---------------------------------------------------------------------------
+
+func newEntryServer() *fakeServer {
+	return &fakeServer{
+		hasPutData:  true,
+		entries:     make(map[uint64]*gconn.Record),
+		payloads:    make(map[uint64][]byte),
+		payloadErrs: make(map[uint64]string),
+	}
+}
+
+func dialEntryServer(t *testing.T, srv *fakeServer, maxConcurrency int) *Exporter {
+	t.Helper()
+	conn, cleanup := dialTestServer(t, srv)
+	t.Cleanup(cleanup)
+
+	opts := &connectors.Options{MaxConcurrency: maxConcurrency}
+	exp, err := NewExporter(t.Context(), conn, opts, "p", nil)
+	if err != nil {
+		t.Fatalf("NewExporter: %v", err)
+	}
+	if !exp.(*Exporter).hasPutData {
+		t.Fatal("client did not pick up has_put_data")
+	}
+	return exp.(*Exporter)
+}
+
+// recordOf builds a record whose reader serves payload, optionally
+// failing with readErr once payload is exhausted.
+func recordOf(name string, payload []byte, readErr error) *connectors.Record {
+	var rd io.Reader = bytes.NewReader(payload)
+	if readErr != nil {
+		rd = io.MultiReader(rd, errReader{readErr})
+	}
+	return &connectors.Record{
+		Pathname: "/" + name,
+		FileInfo: objects.FileInfo{Lname: name, Lsize: int64(len(payload)), Lmode: 0o644},
+		Reader:   io.NopCloser(rd),
+	}
+}
+
+type errReader struct{ err error }
+
+func (e errReader) Read([]byte) (int, error) { return 0, e.err }
+
+// exportRecords runs a whole Export over recs and returns its error.
+func exportRecords(t *testing.T, exp *Exporter, recs ...*connectors.Record) error {
+	t.Helper()
+
+	records := make(chan *connectors.Record, len(recs))
+	for _, rec := range recs {
+		records <- rec
+	}
+	close(records)
+
+	results := make(chan *connectors.Result, len(recs)+1)
+	done := make(chan error, 1)
+	go func() { done <- exp.Export(t.Context(), records, results) }()
+
+	for range results {
+	}
+
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for Export to return")
+		return nil
+	}
+}
+
+func TestExporter_EntryInlinesSmallPayloads(t *testing.T) {
+	big := bytes.Repeat([]byte("x"), inlineThreshold*3)
+
+	for _, tc := range []struct {
+		name     string
+		payload  []byte
+		putDatas int
+	}{
+		{"empty", nil, 0},
+		{"small", []byte("data"), 0},
+		{"threshold", bytes.Repeat([]byte("y"), inlineThreshold-1), 0},
+		{"large", big, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := newEntryServer()
+			exp := dialEntryServer(t, srv, 4)
+
+			if err := exportRecords(t, exp, recordOf(tc.name, tc.payload, nil)); err != nil {
+				t.Fatalf("Export: %v", err)
+			}
+
+			srv.mu.Lock()
+			defer srv.mu.Unlock()
+
+			if len(srv.received) != 1 {
+				t.Fatalf("server saw %d records, want 1", len(srv.received))
+			}
+			if got := srv.received[0].payload; !bytes.Equal(got, tc.payload) {
+				t.Errorf("payload: got %d bytes, want %d", len(got), len(tc.payload))
+			}
+			if srv.putDataCalls != tc.putDatas {
+				t.Errorf("PutData calls: got %d, want %d", srv.putDataCalls, tc.putDatas)
+			}
+		})
+	}
+}
+
+func TestExporter_EntrySendsDirectoriesWithoutPayload(t *testing.T) {
+	srv := newEntryServer()
+	exp := dialEntryServer(t, srv, 4)
+
+	dir := &connectors.Record{
+		Pathname: "/d",
+		FileInfo: objects.FileInfo{Lname: "d", Lmode: 0o755 | os.ModeDir},
+	}
+	if err := exportRecords(t, exp, dir); err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+
+	if len(srv.received) != 1 {
+		t.Fatalf("server saw %d records, want 1", len(srv.received))
+	}
+	if got := srv.received[0].payload; got != nil {
+		t.Errorf("directory carried a %d byte payload", len(got))
+	}
+	if srv.putDataCalls != 0 {
+		t.Errorf("directory used %d PutData streams", srv.putDataCalls)
+	}
+}
+
+// A record we cannot read is the exporter's to report: the session
+// carries on.
+func TestExporter_EntryReadFailureIsPerRecord(t *testing.T) {
+	boom := errors.New("boom")
+
+	for _, tc := range []struct {
+		name    string
+		payload []byte
+	}{
+		// fails while probing for the inline threshold
+		{"probing", []byte("short")},
+		// fails once the payload is already on its way
+		{"uploading", bytes.Repeat([]byte("x"), inlineThreshold*3)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := newEntryServer()
+			exp := dialEntryServer(t, srv, 4)
+
+			rec := recordOf(tc.name, tc.payload, boom)
+			if err := exportRecords(t, exp, rec, recordOf("ok", []byte("fine"), nil)); err != nil {
+				t.Fatalf("Export: %v", err)
+			}
+
+			srv.mu.Lock()
+			defer srv.mu.Unlock()
+
+			if len(srv.payloadErrs) != 1 {
+				t.Fatalf("server saw %d payload errors, want 1", len(srv.payloadErrs))
+			}
+			for _, msg := range srv.payloadErrs {
+				if !strings.Contains(msg, boom.Error()) {
+					t.Errorf("payload error %q does not mention %q", msg, boom)
+				}
+			}
+			if len(srv.received) != 1 {
+				t.Errorf("server completed %d records, want 1 (the good one)", len(srv.received))
+			}
+		})
+	}
+}
+
+// An exporter that stops reading a payload says so in the response,
+// which is not a failure of the session.
+func TestExporter_EntryAbortedPayloadIsNotAnError(t *testing.T) {
+	srv := newEntryServer()
+	srv.abortPayloads = true
+	exp := dialEntryServer(t, srv, 4)
+
+	big := bytes.Repeat([]byte("x"), inlineThreshold*3)
+	if err := exportRecords(t, exp, recordOf("big", big, nil)); err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+}
+
+// Anything else going wrong on a PutData stream is transport, and
+// takes the session down rather than losing a record quietly.
+func TestExporter_PutDataFailureFailsExport(t *testing.T) {
+	srv := newEntryServer()
+	srv.putDataErr = status.Error(codes.Internal, "nope")
+	exp := dialEntryServer(t, srv, 4)
+
+	big := bytes.Repeat([]byte("x"), inlineThreshold*3)
+	err := exportRecords(t, exp, recordOf("big", big, nil), recordOf("big2", big, nil))
+	if err == nil {
+		t.Fatal("Export succeeded despite a failing PutData")
+	}
+	if !strings.Contains(err.Error(), "nope") {
+		t.Errorf("Export: %v, want it to mention the PutData failure", err)
+	}
+}
+
+// The point of the whole exercise: payloads upload in parallel.
+func TestExporter_EntryPayloadsUploadConcurrently(t *testing.T) {
+	const concurrency = 4
+
+	srv := newEntryServer()
+	srv.putDataBarrier = make(chan struct{})
+	srv.putDataArrived = make(chan struct{})
+	exp := dialEntryServer(t, srv, concurrency)
+
+	big := bytes.Repeat([]byte("x"), inlineThreshold*3)
+	recs := make([]*connectors.Record, concurrency)
+	for i := range recs {
+		recs[i] = recordOf("big", big, nil)
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- exportRecords(t, exp, recs...) }()
+
+	// Every handler blocks on the barrier, so seeing all of them
+	// arrive means they are all open at the same time.
+	for range concurrency {
+		select {
+		case <-srv.putDataArrived:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timeout waiting for concurrent PutData streams")
+		}
+	}
+	close(srv.putDataBarrier)
+
+	if err := <-done; err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	if len(srv.received) != concurrency {
+		t.Errorf("server completed %d records, want %d", len(srv.received), concurrency)
+	}
+}
+
+// A payload failure cancels the payloads still in flight; what comes
+// back must be the failure, not the context.Canceled it caused.
+func TestExporter_PutDataFailureBeatsTheCancellation(t *testing.T) {
+	const concurrency = 4
+
+	srv := newEntryServer()
+	srv.failFirstPutData = true
+	exp := dialEntryServer(t, srv, concurrency)
+
+	big := bytes.Repeat([]byte("x"), inlineThreshold*3)
+	recs := make([]*connectors.Record, concurrency)
+	for i := range recs {
+		recs[i] = recordOf("big", big, nil)
+	}
+
+	err := exportRecords(t, exp, recs...)
+	if err == nil {
+		t.Fatal("Export succeeded despite a failing PutData")
+	}
+	if !strings.Contains(err.Error(), "nope") {
+		t.Errorf("Export: %v, want the PutData failure rather than its fallout", err)
 	}
 }
