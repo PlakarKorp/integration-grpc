@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -899,5 +900,76 @@ func TestExporter_PutDataFailureBeatsTheCancellation(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "nope") {
 		t.Errorf("Export: %v, want the PutData failure rather than its fallout", err)
+	}
+}
+
+type trackingReader struct {
+	io.Reader
+	closed atomic.Bool
+}
+
+func (r *trackingReader) Close() error {
+	r.closed.Store(true)
+	return nil
+}
+
+// Whatever ends an export, the records we took over and never sent
+// still own an open reader until we close it.
+func TestExporter_AbandonedRecordsAreClosed(t *testing.T) {
+	const count = 50
+
+	for _, tc := range []struct {
+		name    string
+		srv     *fakeServer
+		payload []byte
+	}{{
+		// the Export stream dies under the sender
+		name:    "legacy",
+		srv:     &fakeServer{earlyExportErr: errors.New("simulated export tool failure")},
+		payload: []byte("data"),
+	}} {
+		t.Run(tc.name, func(t *testing.T) {
+			conn, cleanup := dialTestServer(t, tc.srv)
+			t.Cleanup(cleanup)
+
+			exp, err := NewExporter(t.Context(), conn, &connectors.Options{MaxConcurrency: 1}, "p", nil)
+			if err != nil {
+				t.Fatalf("NewExporter: %v", err)
+			}
+
+			readers := make([]*trackingReader, count)
+			records := make(chan *connectors.Record)
+			go func() {
+				defer close(records)
+				for i := range readers {
+					readers[i] = &trackingReader{Reader: bytes.NewReader(tc.payload)}
+					rec := recordOf("f", tc.payload, nil)
+					rec.Reader = readers[i]
+					records <- rec
+				}
+			}()
+
+			results := make(chan *connectors.Result, count+1)
+			done := make(chan error, 1)
+			go func() { done <- exp.Export(t.Context(), records, results) }()
+
+			for range results {
+			}
+
+			select {
+			case <-done:
+			case <-time.After(5 * time.Second):
+				t.Fatal("timeout waiting for Export to return")
+			}
+
+			for i, rd := range readers {
+				if rd == nil {
+					t.Fatalf("the producer never got to record %d", i)
+				}
+				if !rd.closed.Load() {
+					t.Fatalf("record %d was abandoned with its reader open", i)
+				}
+			}
+		})
 	}
 }

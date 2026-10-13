@@ -62,6 +62,14 @@ func ignoreEOF(err error) error {
 	return err
 }
 
+func drain(records <-chan *connectors.Record) {
+	for record := range records {
+		if record.Reader != nil {
+			record.Reader.Close()
+		}
+	}
+}
+
 func unwrap(err error) error {
 	if err == nil {
 		return nil
@@ -135,11 +143,7 @@ func (g *Exporter) Close(ctx context.Context) error {
 }
 
 func (g *Exporter) transmitRecords(stream grpc.BidiStreamingClient[ExportRequest, ExportResponse], records <-chan *connectors.Record) error {
-	defer func() {
-		for range records {
-			// draining to avoid deadlocks
-		}
-	}()
+	defer drain(records)
 	defer stream.CloseSend()
 
 	for record := range records {
@@ -151,6 +155,9 @@ func (g *Exporter) transmitRecords(stream grpc.BidiStreamingClient[ExportRequest
 		if err := stream.Send(&hdr); err != nil {
 			if errors.Is(err, io.EOF) {
 				err = nil
+			}
+			if record.Reader != nil {
+				record.Reader.Close()
 			}
 			return err
 		}
@@ -203,11 +210,7 @@ func (g *Exporter) transmitRecords(stream grpc.BidiStreamingClient[ExportRequest
 // uploading the payloads that don't fit inline over maxConcurrency
 // PutData streams.
 func (g *Exporter) transmitEntries(ctx context.Context, stream grpc.BidiStreamingClient[ExportRequest, ExportResponse], records <-chan *connectors.Record) error {
-	defer func() {
-		for range records {
-			// draining to avoid deadlocks
-		}
-	}()
+	defer drain(records)
 
 	// whoever fails first cancels the rest and is the one
 	// reported; later failures are only fallout.
@@ -236,12 +239,8 @@ func (g *Exporter) transmitEntries(ctx context.Context, stream grpc.BidiStreamin
 		// the session is going down; don't wait on payloads that
 		// nobody is going to read any more.
 		cancel(err)
-	} else {
-		// let the exporter know the records are over while we
-		// finish to upload the data.
-		if err := ignoreEOF(stream.CloseSend()); err != nil {
-			cancel(err)
-		}
+	} else if err := ignoreEOF(stream.CloseSend()); err != nil {
+		cancel(err)
 	}
 
 	wg.Wait()
