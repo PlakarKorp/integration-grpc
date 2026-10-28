@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"strings"
 	"testing"
 
 	"github.com/PlakarKorp/kloset/connectors/storage"
@@ -30,8 +31,9 @@ type fakeServer struct {
 	getErr     error
 	mode       int32
 
-	putBytes int64
-	putErr   error
+	putBytes    int64
+	putErr      error
+	putEarlyErr error
 
 	receivedMac    []byte
 	receivedType   StorageResource
@@ -74,6 +76,9 @@ func (f *fakeServer) Put(stream grpc.ClientStreamingServer[PutRequest, PutRespon
 		}
 		if err != nil {
 			return err
+		}
+		if f.putEarlyErr != nil {
+			return f.putEarlyErr
 		}
 		if len(req.Mac) > 0 {
 			f.receivedMac = append([]byte(nil), req.Mac...)
@@ -216,6 +221,24 @@ func TestStore_PutStreamsChunks(t *testing.T) {
 	}
 	if !bytes.Equal(glued, payload) {
 		t.Errorf("payload mismatch: %q vs %q", glued, payload)
+	}
+}
+
+func TestStore_Put_SurfacesServerErrorOnEarlyClose(t *testing.T) {
+	srv := &fakeServer{putEarlyErr: status.Error(codes.ResourceExhausted, "quota exceeded")}
+	conn, cleanup := dialTestServer(t, srv)
+	defer cleanup()
+
+	s, _ := NewStorage(context.Background(), conn, "p", nil)
+
+	// Large enough that Send runs into the closed stream.
+	payload := make([]byte, 16<<20)
+	_, err := s.Put(context.Background(), storage.StorageResourcePackfile, objects.MAC{}, bytes.NewReader(payload))
+	if err == nil {
+		t.Fatalf("expected error from server that closed the stream early")
+	}
+	if !strings.Contains(err.Error(), "quota exceeded") {
+		t.Errorf("Put error = %q, want the server's error", err)
 	}
 }
 
