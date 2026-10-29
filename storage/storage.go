@@ -252,8 +252,12 @@ func (s *Store) Put(ctx context.Context, res storage.StorageResource, mac object
 		})
 	})
 	if err != nil {
-		if err == io.EOF {
-			_, err = stream.CloseAndRecv()
+		// Send only reports io.EOF when the server ends the stream; its status
+		// is in CloseAndRecv.
+		if errors.Is(err, io.EOF) {
+			if _, rerr := stream.CloseAndRecv(); rerr != nil {
+				err = rerr
+			}
 		}
 		return n, unwrap(err)
 	}
